@@ -4,6 +4,18 @@ All notable changes to Halo Battery are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Razer Barracuda Pro (2.4 GHz) support through its receiver (1532:053a), which does not
+  answer the standard Razer request: the headset speaks the "PA" protocol, decoded from a
+  USBPcap capture of Razer Synapse on a real unit. Battery command 0x21, charging 0x2A, and
+  the `razer` provider hands this PID over instead of reporting "no reply" for it.
+  Confirmed on hardware by @phl23 in
+  [#10](https://github.com/HeyOkay/HaloBattery/issues/10): the level tracks (34% while the
+  capture was taken, 27% when the branch was tested), the charging state follows the
+  charger, and a switched-off headset reports "no link" instead of a stale value.
+
 ## [1.11.0] - 2026-09-27
 
 ### Added

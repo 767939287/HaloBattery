@@ -18,6 +18,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
     connection query from the Linux driver `hid-steelseries-arctis.c`. A reply that
     does not answer the request is never read as a level. Only vendor collections get
     a request. The Arctis Pro GameDAC is left out, because it is a wired headset.
+- Astro A50 Gen 5 support through its base station, without G HUB: exact level, and
+  charging while the headset sits on the dock (the station reports that as byte 8).
+  The protocol is HeadsetControl's, reverse-engineered from G HUB captures and
+  verified on the same station (046D:0B1C); it is neither HID++ nor the A50 X's
+  "Centurion" protocol, and the provider only matches that USB id.
+  **Unverified** here: no A50 was on hand, so a level out of 0..100 is refused
+  rather than shown.
 
 ### Fixed
 - Arctis Nova 7: while the headset is off or still switching on, the dongle repeats

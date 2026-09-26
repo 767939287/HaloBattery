@@ -4,6 +4,11 @@ All notable changes to Halo Battery are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- HyperX Cloud III Wireless (`03F0:05B7`) over HID: battery and charging from the dongle's `0xFF13` vendor collection, next to the Cloud II support and alongside NGENUITY. **Unverified on hardware** - the packets, the reply ids and the level byte come from LennardKittner/HyperHeadset's implementation for this product id, which also documents the Windows-only fallback where a dongle accepts the packet only as a feature report; that fallback is implemented and the diagnostics say which path was taken. A level above 100 and the reference's all-zero state are both refused rather than shown as a reading
+
 ## [1.11.0] - 2026-09-27
 
 ### Added

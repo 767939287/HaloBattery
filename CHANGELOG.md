@@ -26,6 +26,18 @@ and the project follows [Semantic Versioning](https://semver.org/).
   a game has already switched the controller, and the icon shows no level otherwise.
   **Preferences > PlayStation full mode (Bluetooth)** brings the old behaviour back for
   those who do not play such games. USB is unchanged.
+- **A "PA" headset (BlackShark V2 Pro 2023, Barracuda) that is switched off costs one probe per
+  poll instead of one per collection.** `_poll_pa` remembered the collection that answered, but
+  only on a success, so a headset that had been off since the app started had nothing remembered
+  and every poll walked all of its vendor collections (~0.7 s each).
+  The obvious fix - remember whichever collection reports "no reading" - would pin a *wrong*
+  collection, because `read_battery`'s `offline` covers two different situations: the interface
+  opened but never accepted a single command (which is exactly what a wrong collection looks
+  like), and the interface accepted a command while the headset did not answer (the right
+  collection, headset off). `read_battery` now says which of the two it is, and only the second
+  is remembered. A switched-off headset still shows "no link" rather than losing its icon, and a
+  headset switched on afterwards is still found. Reported by @ahmedkhursheed23 in
+  [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
 
 ## [1.12.0] - 2026-09-28
 

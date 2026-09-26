@@ -390,6 +390,7 @@ class RazerProvider(Provider):
         if cached:
             cands.sort(key=lambda d: 0 if d["path"] == cached.path else 1)
         offline = None
+        asleep = None
         for d in cands:
             self._diag.append(
                 f"  [PA] iface={d.get('interface_number')} usage={d.get('usage_page', 0):04x}:"
@@ -398,11 +399,26 @@ class RazerProvider(Provider):
             if res == "ok":
                 self._cache[cache_key] = _Cand(d["path"], 0)
                 return STATUS_OK, level, charging
-            if res == "offline" and offline is None:
-                offline = (STATUS_TIMEOUT, None, None)
-                if cached and d["path"] == cached.path:
-                    break      # working interface is known, the headset is just off
-        return offline
+            if res == "offline":
+                # The interface accepted a command and the headset did not answer: this is the
+                # collection that speaks the protocol, with the headset switched off. Remember
+                # it, so an off headset costs one probe per poll instead of one per collection
+                # (measured: 2 probes -> 1 with two vendor collections, ~0.7 s each), and stop
+                # walking the list.
+                self._cache[cache_key] = _Cand(d["path"], 0)
+                if offline is None:
+                    offline = (STATUS_TIMEOUT, None, None)
+                break
+            if res == "nowake" and asleep is None:
+                # The interface opened but never accepted a command - which is also what a
+                # wrong collection looks like, so it must NOT be cached. If a wrong path were
+                # cached, the sort above would put it first and its "offline" would break the
+                # loop every time, so the collection that actually works would never be
+                # reached again and a headset switched on later would never be read.
+                # Keep it only as the fallback answer, so a receiver that is asleep still
+                # shows "no link" (STATUS_TIMEOUT) instead of losing its icon.
+                asleep = (STATUS_TIMEOUT, None, None)
+        return offline or asleep
 
     def diagnostics(self) -> List[str]:
         return list(self._diag)

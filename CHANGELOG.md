@@ -17,6 +17,17 @@ and the project follows [Semantic Versioning](https://semver.org/).
   Bluetooth at once keeps one icon. Thanks to @dendr203 (#7).
 - HyperX Cloud II Wireless over HID (`03F0:0696`, `03F0:018B`): battery and charging, using the exchange HeadsetControl documents for these product ids. **Unverified** - no Cloud II Wireless was on hand, so a reply that does not echo the command is ignored and a level above 100 refused rather than shown
 - SteelSeries Rival 3 Wireless (`1038:1830`) over HID: battery and charging on the mouse exchange, next to the existing Nova headsets and alongside SteelSeries GG. **Unverified** - the reply layout is the open question in [#5](https://github.com/HeyOkay/HaloBattery/issues/5), so a reply without the command echo is skipped and a level above 100 refused rather than shown
+- JBL Quantum 910 Wireless support through its dongle: the headset pushes report 0x08
+  with the level in byte 1, the pattern plugato/JBL_Baterry_Monitor confirmed on this
+  USB id (0ECB:2088, one vendor collection `ff13:0001`, interface 5 on a real unit). There is no request to send, and the headset can
+  stay quiet for long stretches, so the last level heard is kept and shown greyed out.
+  Confirmed on a real unit: the provider finds the receiver, matches its collection and shows the level,
+  and a capture from that unit reads `08 5f 03 ...` - report 0x08 with byte 1 = `0x5f` = 95%, at the
+  moment JBL's own app showed 95%. The report is an event: it arrives when the headset is plugged into
+  its charger, and pressing buttons or the volume rocker does not produce it, so the listen window is ten
+  seconds and the last level heard is kept. The receiver also pushes a power report 0x09 (byte 1 is 0x00
+  when the headset is off and 0x01 when it is on, confirmed on a real unit) and a 0x02 frame; none of them
+  is a level, and a headset last seen switched off explains itself in the diagnostics. The report has no charging flag, so none is shown.
 - Logitech support over HID++ 2.0, without G HUB (and alongside it). Every device
   paired to a Lightspeed or Unifying receiver gets its own icon, named as the device
   reports itself; the level comes from the unified battery, battery status or battery

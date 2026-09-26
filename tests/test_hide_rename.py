@@ -242,6 +242,15 @@ class MenuLayoutTests(HideRenameTestCase):
                                  "Refresh now", "Preferences", "Diagnostics…",
                                  f"Exit (v{hb.VERSION})"])
 
+    def test_hidden_devices_sits_with_preferences(self):
+        app = make_app({"hidden": {"a": "Xbox Controller"}})
+        app.apply([dev()])
+        texts = [i.text for i in app.build_menu(app.icons["logitech:C15E09CD"]).items
+                 if i.visible and i is not hb.Menu.SEPARATOR]
+        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Hide this device",
+                                 "Refresh now", "Preferences", "Hidden devices",
+                                 "Diagnostics…", f"Exit (v{hb.VERSION})"])
+
     def test_preferences_holds_the_settings(self):
         app = make_app()
         menu = app.build_menu(None)

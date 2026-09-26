@@ -34,6 +34,11 @@ from .base import DeviceStatus, Provider, hexdump, log
 
 SONY_VID = 0x054C
 
+# How long a controller that is connected but reports no battery keeps the app on its fast
+# (3 s) re-check path. Another app holding the controller never lets go, and that path costs
+# a full poll of every provider each time it runs.
+PENDING_WINDOW = 120.0
+
 # pid -> (display name, is_dualsense)
 KNOWN = {
     0x05C4: ("Sony DualShock 4", False),      # 2013 model
@@ -60,6 +65,15 @@ TRIGGER_FEATURE = {False: 0x02, True: 0x05}   # is_dualsense -> feature id
 # use "VID_" instead.
 _BT_HID_GUID = "{00001124-0000-1000-8000-00805f9b34fb}"
 
+# How long to wait for the battery report after the feature-report trigger, and how
+# long one controller may cost in total. A DualSense or DualShock 4 exposes several
+# collections (audio, touch, sensors, gamepad) and the battery rides on the gamepad
+# one; an interface that never answers used to cost the full window each, so three or
+# four of them held the poll loop for up to 6 s and delayed every other device's
+# update with it.
+WINDOW = 1.5
+BUDGET = 2.5
+
 
 def parse_ds4(byte: int) -> Tuple[int, bool]:
     """DualShock 4 battery byte -> (level %, charging)."""
@@ -84,12 +98,19 @@ def parse_dualsense(byte: int) -> Optional[Tuple[int, bool]]:
     return level, False             # on battery, or an error state: show the level, no arc pulse
 
 
+def _battery_first(d) -> int:
+    """Sort key for the candidate interfaces: the gamepad collection carries the
+    battery, so it is tried first and the rest only if it says nothing."""
+    return 0 if (d.get("usage_page") == 0x01 and d.get("usage") in (0x04, 0x05)) else 1
+
+
 class PlayStationProvider(Provider):
     name = "playstation"
 
     def __init__(self):
         self._diag: List[str] = []
         self.pending = False        # a controller is connected but has not reported battery yet
+        self._pending_since: Dict[str, float] = {}   # key -> when its reading first went missing
 
     # ---- low level -------------------------------------------------------
     @staticmethod
@@ -98,7 +119,7 @@ class PlayStationProvider(Provider):
         s = s.lower()
         return "vid&" in s or _BT_HID_GUID in s
 
-    def _read(self, path, is_dualsense: bool) -> Optional[Tuple[int, bool]]:
+    def _read(self, path, is_dualsense: bool, window: float = WINDOW) -> Optional[Tuple[int, bool]]:
         """-> (level, charging) or None if no battery report arrived."""
         dev = hid.device()
         try:
@@ -122,7 +143,7 @@ class PlayStationProvider(Provider):
                 dev.get_feature_report(trigger, 64)
             except (OSError, ValueError) as e:
                 self._diag.append(f"    feature {trigger:#04x}: {e}")
-            deadline = time.time() + 1.5
+            deadline = time.time() + window
             while time.time() < deadline:
                 try:
                     data = dev.read(78)
@@ -153,6 +174,7 @@ class PlayStationProvider(Provider):
         self.pending = False
         if hid is None:
             return []
+        now = time.time()
         try:
             infos = hidlist.enumerate(SONY_VID)
         except Exception as e:  # pragma: no cover
@@ -177,11 +199,18 @@ class PlayStationProvider(Provider):
             self._diag.append(f"[PlayStation] {name} pid={pid:04x} "
                               f"{'Bluetooth' if bluetooth else 'USB'} interfaces={len(ifaces)} '{product}'")
             res = None
-            for d in ifaces:
+            ordered = sorted(ifaces, key=_battery_first)
+            budget_end = time.time() + BUDGET
+            for d in ordered:
                 self._diag.append(
                     f"  iface={d.get('interface_number')} usage="
                     f"{d.get('usage_page', 0):04x}:{d.get('usage', 0):04x}")
-                res = self._read(d["path"], is_dualsense)
+                left = budget_end - time.time()
+                if left <= 0:
+                    self._diag.append("  out of time for this controller: "
+                                      "the remaining interfaces are skipped")
+                    break
+                res = self._read(d["path"], is_dualsense, min(WINDOW, left))
                 if res is not None:
                     break
             if res is not None:
@@ -194,14 +223,30 @@ class PlayStationProvider(Provider):
             key = f"ps:{dev['pid']:04x}:{dev['mac']}"
             res = dev["reading"]
             if res is None:
-                # present but battery not read (just connected, or another app holds it):
-                # show the icon without an arc and re-check soon
-                self.pending = True
-                log.info("[PlayStation] %s: connected, battery not reported yet", dev["name"])
-                out.append(DeviceStatus(key, dev["name"], None, False, True, "playstation",
-                                        "connected, battery level not reported yet"))
+                # Present but no battery read: just connected, or another app (DS4Windows,
+                # HidHide) is holding the controller so `open` fails on every poll. Show the
+                # icon without an arc and re-check soon - but only for a while. `pending`
+                # makes the app poll every provider every 3 s, and a controller that can
+                # never be opened kept that up for as long as it stayed plugged in.
+                since = self._pending_since.get(key)
+                if since is None:
+                    since = self._pending_since[key] = now
+                    log.info("[PlayStation] %s: connected, battery not reported yet", dev["name"])
+                if now - since < PENDING_WINDOW:
+                    self.pending = True
+                    approx = "connected, battery level not reported yet"
+                else:
+                    del self._pending_since[key]
+                    self._diag.append(f"  {dev['name']}: no battery report for "
+                                      f"{PENDING_WINDOW:.0f} s, another app may be holding the "
+                                      f"controller - back to the normal poll interval")
+                    log.info("[PlayStation] %s: no battery report for %.0f s, not re-checking "
+                             "every 3 s any more", dev["name"], PENDING_WINDOW)
+                    approx = "connected, battery not readable (another app may hold it)"
+                out.append(DeviceStatus(key, dev["name"], None, False, True, "playstation", approx))
                 continue
             level, charging = res
+            self._pending_since.pop(key, None)
             out.append(DeviceStatus(key, dev["name"], level, charging, True, "playstation"))
         return out
 

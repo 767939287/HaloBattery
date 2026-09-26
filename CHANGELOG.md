@@ -4,6 +4,12 @@ All notable changes to Halo Battery are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **SteelSeries Rival 3 Wireless replies are read in either layout.** flozz/rivalcfg sends the same `aa 01` request and reads the reply with the same hidapi call, but takes a 3-byte reply with the level in byte 0 and charging in byte 2, while yurtemre7/steel-mouse reads an `aa` echo with the level in byte 1 and charging in byte 3. Nothing has been on hardware here, so both are accepted now instead of only the echo shape - a reply without the echo used to be skipped, which would have left the mouse showing nothing if rivalcfg is the correct one. The diagnostics print the raw reply and name the shape. The discrepancy was reported by @ahmedkhursheed23 in [#5](https://github.com/HeyOkay/HaloBattery/issues/5).
+- **SteelSeries devices are found by usage page, not by interface number.** The configuration collection is `0xFFC0`, and the Rival 650 exposes it on interface 0 (rivalcfg's profile says endpoint 0, and rivalcfg issue #202 is about needing the usage page to find it dependably). Filtering on interface 3 skipped that mouse entirely. When the page appears more than once the collection on interface 3 wins, so the Nova headsets and the Rival 3 are read exactly as before. Pointed out by @ahmedkhursheed23 in [#5](https://github.com/HeyOkay/HaloBattery/issues/5).
+
 ## [1.11.0] - 2026-09-27
 
 ### Added

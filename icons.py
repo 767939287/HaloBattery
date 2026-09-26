@@ -29,8 +29,9 @@ GREEN = (16, 196, 80)
 CLEAR = (0, 0, 0, 0)
 
 # device kind aliases (single letters are accepted too)
-KINDS = {"H": "headset", "M": "mouse", "B": "bluetooth", "G": "gamepad",
+KINDS = {"H": "headset", "M": "mouse", "B": "bluetooth", "G": "gamepad", "K": "keyboard",
          "headset": "headset", "mouse": "mouse", "bluetooth": "bluetooth", "gamepad": "gamepad",
+         "keyboard": "keyboard",
          "dualshock": "dualshock", "dualsense": "dualsense",
          "ps4": "dualshock", "ps5": "dualsense", "xbox": "gamepad"}
 
@@ -79,6 +80,28 @@ def _mouse(d: ImageDraw.ImageDraw, cx: float, cy: float, s: float, col):
     # the button lines are cut out (transparent), so they show on any theme
     d.line((_r(cx), _r(cy - s), _r(cx), _r(cy - s * 0.2)), fill=CLEAR, width=lw)
     d.line((_r(cx - w), _r(cy - s * 0.2), _r(cx + w), _r(cy - s * 0.2)), fill=CLEAR, width=lw)
+
+
+def _keyboard(d: ImageDraw.ImageDraw, cx: float, cy: float, s: float, col):
+    """Keyboard silhouette: a wide, low body with chunky key rows cut out.
+
+    Wide and low is what separates it from the mouse at this size; the keys are cut out
+    rather than drawn (like the mouse's buttons), so the shape reads on a light and a
+    dark taskbar alike."""
+    w, h = s * 1.18, s * 0.52
+    d.rounded_rectangle((_r(cx - w), _r(cy - h), _r(cx + w), _r(cy + h)),
+                        radius=_r(h * 0.3), fill=col)
+    lw = _r(max(2.0, s * 0.16))
+    for dy, n in ((-0.46, 4), (0.02, 4)):
+        span = w * 0.6
+        step = (2 * span) / (n - 1)
+        for i in range(n):
+            x = cx - span + i * step
+            y = cy + dy * h
+            d.line((_r(x - lw * 0.6), _r(y), _r(x + lw * 0.6), _r(y)), fill=CLEAR, width=lw)
+    d.line((_r(cx - w * 0.66), _r(cy + h * 0.5), _r(cx + w * 0.66), _r(cy + h * 0.5)),
+           fill=CLEAR, width=lw)
+
 
 
 def _bluetooth(d: ImageDraw.ImageDraw, cx: float, cy: float, s: float, col):
@@ -168,6 +191,7 @@ def _dualshock(d: ImageDraw.ImageDraw, cx: float, cy: float, s: float, col):
 
 PICTOS = {"headset": (_headset, 0, 2, 18), "mouse": (_mouse, 0, 0, 19.5),
           "bluetooth": (_bluetooth, 0, 0, 18), "gamepad": (_gamepad, 0, 0, 18.4),
+          "keyboard": (_keyboard, 0, 0, 15.5),
           "dualshock": (_dualshock, 0, -0.2, 18.4),
           "dualsense": (_dualshock, 0, -0.2, 18.4)}   # its own silhouette is still to come
 
@@ -176,7 +200,7 @@ PICTOS = {"headset": (_headset, 0, 2, 18), "mouse": (_mouse, 0, 0, 19.5),
 def render(level: Optional[int], charging: bool, online: bool, low: int = 20,
            light_taskbar: Optional[bool] = None, badge: str = "",
            pulse: float = 1.0) -> Image.Image:
-    """badge - device kind: headset / mouse / bluetooth (or H / M / B).
+    """badge - device kind: headset / mouse / keyboard / bluetooth (or H / M / K / B).
     pulse - arc brightness 0..1 (a frame of the charging "breathing" animation)."""
     if light_taskbar is None:
         light_taskbar = taskbar_is_light()

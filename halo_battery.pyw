@@ -375,6 +375,13 @@ class DeviceIcon:
         # the tray tooltip is limited to 127 characters
         if self.icon.title != title[:127]:
             self.icon.title = title[:127]
+            # pystray builds the Windows menu once and keeps its texts. The menu header
+            # shows the same text as the tooltip, so rebuild the menu when it changes;
+            # otherwise the header keeps "No devices found" from before the first reading
+            try:
+                self.icon.update_menu()
+            except Exception:
+                pass
         if not self.icon.visible:
             try:
                 self.icon.visible = True

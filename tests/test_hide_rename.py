@@ -252,6 +252,28 @@ class MenuLayoutTests(HideRenameTestCase):
                                  "Start with Windows", "Check for updates"])
 
 
+class MenuRefreshTests(unittest.TestCase):
+    """pystray builds the Windows menu once. The real DeviceIcon must rebuild it when
+    the text changes, or the header keeps "No devices found"."""
+
+    def make_icon(self):
+        ic = hb.DeviceIcon.__new__(hb.DeviceIcon)
+        ic.app = make_app()
+        ic.key, ic.status, ic.frames, ic._state, ic._images = "logitech:C15E09CD", None, None, None, {}
+        ic.icon = types.SimpleNamespace(title=hb.APP_TITLE, icon=None, visible=True, rebuilt=0)
+        ic.icon.update_menu = lambda: setattr(ic.icon, "rebuilt", ic.icon.rebuilt + 1)
+        return ic
+
+    def test_menu_is_rebuilt_when_the_level_changes(self):
+        ic = self.make_icon()
+        ic.update(dev(level=76))
+        self.assertEqual(ic.icon.rebuilt, 1)
+        ic.update(dev(level=76))               # nothing changed: no rebuild
+        self.assertEqual(ic.icon.rebuilt, 1)
+        ic.update(dev(level=75))
+        self.assertEqual(ic.icon.rebuilt, 2)
+
+
 class AskNameTests(unittest.TestCase):
     def run_box(self, stdout):
         calls = []

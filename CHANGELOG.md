@@ -4,6 +4,19 @@ All notable changes to Halo Battery are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **A DualShock 4 wireless adapter with no controller on it no longer shows a 0% icon.** The
+  adapter (`054C:0BA0`) streams report `01` whether or not a controller is paired with it, and
+  fills the battery field with zeros in that case - which was read as a real 0% reading, and at
+  0% the app also raises its low-battery alert, for a controller that is not there. Bit 2 of
+  `status[1]` is the adapter's "no controller connected" flag: the Linux driver calls it
+  `DS4_STATUS1_DONGLE_STATE` and treats it as not connected (`hid-playstation.c`; `hid-sony.c`
+  has no DualShock 4 or dongle code any more). The adapter is now left without a reading when
+  that bit is set, and the diagnostics say so. Reported by @ahmedkhursheed23 in
+  [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
+
 ## [1.11.0] - 2026-09-27
 
 ### Added

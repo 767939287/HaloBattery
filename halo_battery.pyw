@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -292,7 +293,8 @@ def drop_bluetooth_duplicates(results: List[DeviceStatus],
     return kept
 
 
-def describe(st: DeviceStatus) -> str:
+def describe(st: DeviceStatus, name: Optional[str] = None) -> str:
+    """The tooltip text. `name` replaces the device's own name (set with "Rename...")."""
     if st.approx:
         state = st.approx          # XInput: coarse levels or "not reported yet", never a fake "NN%"
     elif st.level is None:
@@ -303,7 +305,34 @@ def describe(st: DeviceStatus) -> str:
             state += ", charging"
         if not st.online:
             state += " (last known value, device asleep)"
-    return f"{st.name}: {state}"
+    return f"{name or st.name}: {state}"
+
+
+# ------------------------------------------------------------- hide / rename
+def ask_name(current: str) -> Optional[str]:
+    """Show a Windows input box for a new device name.
+    -> the new name, or None when the user cancels or leaves it empty.
+
+    The box comes from PowerShell (Microsoft.VisualBasic InputBox), which is on every
+    Windows. The current name goes to PowerShell in an environment variable, not in
+    the command line, so quotes or other characters in a name do no harm."""
+    if sys.platform != "win32":
+        return None
+    script = ("[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
+              "Add-Type -AssemblyName Microsoft.VisualBasic; "
+              "[Microsoft.VisualBasic.Interaction]::InputBox("
+              "'New name for this device:', 'Halo Battery - Rename', $env:HALO_BATTERY_NAME)")
+    try:
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-Command", script],
+            capture_output=True, timeout=600, creationflags=0x08000000,   # CREATE_NO_WINDOW
+            env=dict(os.environ, HALO_BATTERY_NAME=current))
+    except (OSError, subprocess.SubprocessError) as e:
+        log.warning("rename: %s", e)
+        return None
+    name = res.stdout.decode("utf-8", "replace").strip()
+    return name[:60] or None
 
 
 # ------------------------------------------------------------- application
@@ -342,7 +371,7 @@ class DeviceIcon:
             else:
                 self.frames = None
                 self.icon.icon = art
-        title = describe(st)
+        title = describe(st, self.app.display_name(st))
         # the tray tooltip is limited to 127 characters
         if self.icon.title != title[:127]:
             self.icon.title = title[:127]
@@ -417,8 +446,9 @@ class App:
     def build_menu(self, owner: Optional[DeviceIcon]) -> Menu:
         def header_text(_item):
             if owner and owner.status:
-                return describe(owner.status)
-            return "No devices found"
+                return describe(owner.status, self.display_name(owner.status))
+            hidden = len(self._settings_map("hidden"))
+            return f"No devices shown ({hidden} hidden)" if hidden else "No devices found"
 
         def set_interval(sec):
             def _f(icon, item):
@@ -473,10 +503,31 @@ class App:
         def update_text(_item):
             return f"Download v{self.update[0]}…" if self.update else "Download update…"
 
+        def renamed(_item):
+            return bool(owner and owner.status and owner.status.key in self._settings_map("names"))
+
+        def show_again(key):
+            # pystray accepts only actions with 0-2 parameters, so no "k=key" default here
+            return lambda icon, item: self.unhide(key)
+
+        def hidden_items():
+            # built each time the menu opens, so it always shows the current list
+            hidden = self._settings_map("hidden")
+            for key, name in sorted(hidden.items(), key=lambda kv: str(kv[1]).lower()):
+                yield Item(f"Show {name}", show_again(key))
+
+        # items for the device of this icon only (the "no devices" icon has none)
+        device_items = [
+            Item("Rename…", lambda i, it: self.rename(owner)),
+            Item("Reset name", lambda i, it: self.reset_name(owner), visible=renamed),
+            Item("Hide this device", lambda i, it: self.hide(owner)),
+        ] if owner is not None else []
+
         return Menu(
             Item(header_text, None, enabled=False),
             Item(update_text, lambda i, it: self.open_update(),
                  visible=lambda it: self.update is not None),
+            *device_items,
             Menu.SEPARATOR,
             Item("Refresh now", lambda i, it: self.wake.set(), default=True),
             Item("Poll interval", Menu(*[
@@ -498,10 +549,88 @@ class App:
                  checked=lambda it: autostart_enabled()),
             Item("Check for updates", toggle("update_check"),
                  checked=lambda it: self.cfg.get("update_check", True)),
+            Item("Hidden devices", Menu(hidden_items),
+                 visible=lambda it: bool(self._settings_map("hidden"))),
             Menu.SEPARATOR,
             Item("Diagnostics…", lambda i, it: self.request_diag()),
             Item(f"Exit (v{VERSION})", lambda i, it: self.quit()),
         )
+
+    # ---------------- hide / rename
+    def _settings_map(self, key: str) -> Dict[str, str]:
+        """cfg["hidden"] or cfg["names"]: device key -> name. A value that is not a
+        dict (a hand-edited or damaged settings file) is replaced by an empty one."""
+        value = self.cfg.get(key)
+        if not isinstance(value, dict):
+            value = self.cfg[key] = {}
+        return value
+
+    def display_name(self, st: DeviceStatus) -> str:
+        """The name the user gave the device, or the device's own name."""
+        name = self._settings_map("names").get(st.key)
+        return name if isinstance(name, str) and name else st.name
+
+    def hide(self, owner: Optional[DeviceIcon]) -> None:
+        """Remove the icon and remember the device, so it does not come back."""
+        if owner is None or owner.status is None:
+            return
+        st = owner.status
+        with self.lock:
+            self._settings_map("hidden")[st.key] = self.display_name(st)
+            save_config(self.cfg)
+            ic = self.icons.pop(st.key, None)
+            self.missing.pop(st.key, None)
+            self.alerted.pop(st.key, None)
+        log.info("hidden: %s [%s]", self.display_name(st), st.key)
+        if ic is not None:
+            # stop the icon from another thread: this runs in the icon's own menu callback
+            threading.Thread(target=ic.stop, daemon=True).start()
+        self.refresh_menus()
+        self.wake.set()           # the next poll shows the "no devices" icon if none is left
+
+    def unhide(self, key: str) -> None:
+        with self.lock:
+            name = self._settings_map("hidden").pop(key, None)
+            save_config(self.cfg)
+        log.info("shown again: %s [%s]", name, key)
+        self.refresh_menus()
+        self.wake.set()           # the next poll gives the device its icon again
+
+    def rename(self, owner: Optional[DeviceIcon]) -> None:
+        if owner is None or owner.status is None:
+            return
+        # the input box waits for the user: do not block the tray menu while it is open
+        threading.Thread(target=self._rename, args=(owner,), daemon=True).start()
+
+    def _rename(self, owner: DeviceIcon) -> None:
+        st = owner.status
+        if st is None:
+            return
+        new = ask_name(self.display_name(st))
+        if new is None or new == self.display_name(st):
+            return
+        with self.lock:
+            names = self._settings_map("names")
+            if new == st.name:
+                names.pop(st.key, None)       # back to the device's own name
+            else:
+                names[st.key] = new
+            hidden = self._settings_map("hidden")
+            if st.key in hidden:
+                hidden[st.key] = new
+            save_config(self.cfg)
+        log.info("renamed [%s] to %r", st.key, new)
+        owner.update(owner.status or st)      # new tooltip at once
+        self.refresh_menus()
+
+    def reset_name(self, owner: Optional[DeviceIcon]) -> None:
+        if owner is None or owner.status is None:
+            return
+        with self.lock:
+            self._settings_map("names").pop(owner.status.key, None)
+            save_config(self.cfg)
+        owner.update(owner.status)
+        self.refresh_menus()
 
     # ---------------- icon colour
     def compute_light(self) -> bool:
@@ -605,6 +734,9 @@ class App:
                  f"Python {sys.version.split()[0]}  {sys.platform}", ""]
         lines.append("=== Poll result ===")
         lines += [describe(s) + f"   [{s.key}]" for s in results] or ["(nothing)"]
+        hidden, names = self._settings_map("hidden"), self._settings_map("names")
+        lines += [f"hidden by the user: {n}   [{k}]" for k, n in hidden.items()]
+        lines += [f"renamed by the user: {n}   [{k}]" for k, n in names.items()]
         lines.append("")
         lines.append("=== Icon colour ===")
         lines.append(f"mode: {self.cfg.get('icon_theme', 'auto')}, icons drawn for a "
@@ -701,7 +833,10 @@ class App:
 
     def apply(self, results: List[DeviceStatus]):
         seen = set()
+        hidden = self._settings_map("hidden")
         for st in results:
+            if st.key in hidden:
+                continue          # hidden by the user: no icon and no low battery alert
             seen.add(st.key)
             self.missing.pop(st.key, None)
             ic = self.icons.get(st.key)
@@ -749,7 +884,7 @@ class App:
             self.alerted[st.key] = True
             try:
                 left = "battery is low" if st.approx else f"{st.level}% left"
-                ic.icon.notify(f"{st.name}: {left}. Time to charge.", "Low battery")
+                ic.icon.notify(f"{self.display_name(st)}: {left}. Time to charge.", "Low battery")
             except Exception as e:
                 log.warning("notify: %s", e)
 

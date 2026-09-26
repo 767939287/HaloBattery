@@ -4,6 +4,29 @@ All notable changes to Halo Battery are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- SteelSeries: older and other Arctis headsets. Not tested on these headsets; the raw
+  replies go to the diagnostics.
+  - On the `b0` exchange (interface 3): Arctis Nova 7P, Nova 3P / 3X Wireless,
+    Arctis 7+ (and the PS5 / Xbox / Destiny editions), Arctis GameBuds.
+  - With their own requests: Arctis 1 Wireless / 7X / 7P (`06 12`), Arctis 7
+    (`06 14` then `06 18`), Arctis Pro Wireless 2019 (`06 18`), Arctis 9 (`00 20`),
+    Arctis Pro Wireless (`41 aa` then `40 aa`).
+  - Model list and layouts from HeadsetControl; the echo checks and the Arctis 7
+    connection query from the Linux driver `hid-steelseries-arctis.c`. A reply that
+    does not answer the request is never read as a level. Only vendor collections get
+    a request. The Arctis Pro GameDAC is left out, because it is a wired headset.
+
+### Fixed
+- Arctis Nova 7: while the headset is off or still switching on, the dongle repeats
+  the last battery level. The app showed that old level as live for a few seconds.
+  The link byte (byte 1: 03 = connected, 02 = not connected) is now checked too.
+  Verified on a real Nova 7 (22A1).
+- SteelSeries: the Nova headsets are read only from their 0xFFC0 collection, not from
+  whatever collection comes first on interface 3.
+
 ## [1.11.0] - 2026-09-27
 
 ### Added

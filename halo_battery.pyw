@@ -523,19 +523,15 @@ class App:
             Item("Hide this device", lambda i, it: self.hide(owner)),
         ] if owner is not None else []
 
-        return Menu(
-            Item(header_text, None, enabled=False),
-            Item(update_text, lambda i, it: self.open_update(),
-                 visible=lambda it: self.update is not None),
-            *device_items,
-            Menu.SEPARATOR,
-            Item("Refresh now", lambda i, it: self.wake.set(), default=True),
+        # all settings in one submenu, so the main menu keeps only the things used often
+        preferences = Menu(
             Item("Poll interval", Menu(*[
                 Item(t, set_interval(s), checked=lambda it, s=s: self.cfg["interval"] == s, radio=True)
                 for s, t in intervals])),
             Item("Low battery alert at", Menu(*[
                 Item(t, set_low(p), checked=lambda it, p=p: self.cfg["low"] == p, radio=True)
                 for p, t in lows])),
+            Menu.SEPARATOR,
             Item("Windows Bluetooth devices", toggle("bluetooth"),
                  checked=lambda it: self.cfg["bluetooth"]),
             Item("Device pictogram", toggle("badges"),
@@ -545,12 +541,23 @@ class App:
             Item("Icon colour", Menu(*[
                 Item(t, set_theme(m), checked=lambda it, m=m: self.cfg.get("icon_theme", "auto") == m, radio=True)
                 for m, t in themes])),
+            Menu.SEPARATOR,
             Item("Start with Windows", toggle_autostart,
                  checked=lambda it: autostart_enabled()),
             Item("Check for updates", toggle("update_check"),
                  checked=lambda it: self.cfg.get("update_check", True)),
+        )
+
+        return Menu(
+            Item(header_text, None, enabled=False),
+            Item(update_text, lambda i, it: self.open_update(),
+                 visible=lambda it: self.update is not None),
+            *device_items,
             Item("Hidden devices", Menu(hidden_items),
                  visible=lambda it: bool(self._settings_map("hidden"))),
+            Menu.SEPARATOR,
+            Item("Refresh now", lambda i, it: self.wake.set(), default=True),
+            Item("Preferences", preferences),
             Menu.SEPARATOR,
             Item("Diagnostics…", lambda i, it: self.request_diag()),
             Item(f"Exit (v{VERSION})", lambda i, it: self.quit()),

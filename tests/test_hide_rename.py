@@ -232,6 +232,26 @@ class MenuTests(HideRenameTestCase):
         self.assertEqual(app.cfg["hidden"], {"logitech:C15E09CD": "Work mouse"})
 
 
+class MenuLayoutTests(HideRenameTestCase):
+    def test_main_menu_is_short(self):
+        app = make_app()
+        app.apply([dev()])
+        texts = [i.text for i in app.build_menu(app.icons["logitech:C15E09CD"]).items
+                 if i.visible and i is not hb.Menu.SEPARATOR]
+        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Hide this device",
+                                 "Refresh now", "Preferences", "Diagnostics…",
+                                 f"Exit (v{hb.VERSION})"])
+
+    def test_preferences_holds_the_settings(self):
+        app = make_app()
+        menu = app.build_menu(None)
+        prefs = next(i for i in menu.items if i.text == "Preferences").submenu
+        texts = [i.text for i in prefs.items if i is not hb.Menu.SEPARATOR]
+        self.assertEqual(texts, ["Poll interval", "Low battery alert at", "Windows Bluetooth devices",
+                                 "Device pictogram", "Charging animation", "Icon colour",
+                                 "Start with Windows", "Check for updates"])
+
+
 class AskNameTests(unittest.TestCase):
     def run_box(self, stdout):
         calls = []

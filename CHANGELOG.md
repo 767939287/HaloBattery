@@ -63,6 +63,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
   on interface 4, with a second vendor collection `ff00:0001` on the same interface, so
   both are tried and the one that answers is remembered). **Unverified**: the reply
   layout - the nine steps and the state bytes - is HeadsetControl's, not yet seen here.
+- Astro A50 Gen 5 support through its base station, without G HUB: exact level, and
+  charging while the headset sits on the dock (the station reports that as byte 8).
+  The protocol is HeadsetControl's, reverse-engineered from G HUB captures and
+  verified on the same station (046D:0B1C); it is neither HID++ nor the A50 X's
+  "Centurion" protocol, and the provider only matches that USB id.
+  **Unverified** here: no A50 was on hand, so a level out of 0..100 is refused
+  rather than shown.
 
 ### Fixed
 - Tray: an extra "No devices found" icon could stay next to a device icon, for example

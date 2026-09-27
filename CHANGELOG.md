@@ -37,6 +37,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
   and there was no icon; unplugging the dongle and plugging it back in fixed it at once.
   After two such polls in a row the headset now gets a greyed icon that says to replug the
   dongle, and the diagnostics say what was seen. This may be HeadsetControl #460.
+
+### Fixed
+- Audeze Maxwell: no more "Low battery, 0% left" when the headset is switched on. Right
+  after power-on it reports 0% for a moment (measured on an Xbox dongle: 0%, then the real
+  80% a poll later). A 0% in the first 90 seconds is now shown as "battery level not
+  reported yet", and the app re-checks every 3 seconds until the real level arrives
+  instead of waiting a full poll interval. After 90 seconds 0% is believed.
 - **Fully charged**: a notification when a charging device reaches 100%, once per charge
   (a 99/100% wobble on the charger does not repeat it). "Alert when fully charged" in
   Preferences turns it off.

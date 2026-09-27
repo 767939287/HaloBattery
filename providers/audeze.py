@@ -228,6 +228,16 @@ STUCK_POLLS = 2          # polls in a row before the icon says so (not a dongle 
 STUCK_TEXT = "no answer from the headset - unplug the dongle and plug it back in"
 
 
+# Right after it is switched on, the headset reports its battery as 0 for a moment:
+# measured on an Xbox dongle (4B18), the first reading after power-on was 0% (and gave a
+# "Low battery" alert), the next one a minute later the real 80%. So a 0 in the first
+# ZERO_GRACE seconds after the headset appears is "not measured yet", and the provider
+# asks the app to re-check in a few seconds (`pending`) instead of waiting a whole poll
+# interval. After that a 0 is believed: a flat headset charging on the cable is 0%.
+ZERO_GRACE = 90.0
+WAKING_TEXT = "connected, battery level not reported yet"
+
+
 def echo_only(frames) -> bool:
     """True when every reply is an empty echo of the request header."""
     return len(frames) >= ECHO_MIN_FRAMES and all(
@@ -264,6 +274,8 @@ class AudezeProvider(Provider):
         # (pid, serial) -> polls in a row whose replies were all empty echoes (stuck dongle)
         self._echo_polls: Dict[Tuple[int, str], int] = {}
         self._last_echo_only = False     # set by _read_battery for the read it just did
+        self._up_since: Dict[str, float] = {}   # serial -> when the headset started answering
+        self.pending = False             # a 0% was held back: the app re-checks in 3 s
 
     # ---- low level -------------------------------------------------------
     def _read_frame(self, dev) -> Optional[bytes]:
@@ -361,6 +373,7 @@ class AudezeProvider(Provider):
     # ---- high level ------------------------------------------------------
     def poll(self) -> List[DeviceStatus]:
         self._diag = []
+        self.pending = False
         try:
             infos = hidlist.enumerate(AUDEZE_VID)
         except Exception as e:  # pragma: no cover
@@ -465,9 +478,19 @@ class AudezeProvider(Provider):
                     log.info("[Audeze] %s: no battery reading", name)
                     for line in self._diag[diag_from:]:
                         log.info("%s", line)
+                self._up_since.pop(serial, None)     # the next answer starts a new grace period
                 continue
             # whichever endpoint answered, this headset is alive again
             self._down_logged.discard(serial)
+            now = time.time()
+            since = self._up_since.setdefault(serial, now)
+            if level == 0 and now - since < ZERO_GRACE:
+                self._diag.append(f"    0% within {now - since:.0f} s of the headset coming on: "
+                                  f"not measured yet, re-checking in a few seconds")
+                self.pending = True
+                out.append(DeviceStatus(f"audeze:{serial}", HEADSET_NAME, None, False, True,
+                                        "audeze", WAKING_TEXT, kind="headset"))
+                break
             if len(order) > 1:
                 self._diag.append(f"  {name} answered, the other endpoint is not read")
             # The cable endpoint is the charging source: a Maxwell charges
@@ -484,6 +507,10 @@ class AudezeProvider(Provider):
             break
         if not out and stuck is not None:
             out.append(stuck)
+        # a dongle that was unplugged starts a new grace period when it comes back
+        present = {serial for _, serial in groups}
+        for serial in [s for s in self._up_since if s not in present]:
+            del self._up_since[serial]
         return out
 
     def diagnostics(self) -> List[str]:

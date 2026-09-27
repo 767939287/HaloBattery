@@ -110,5 +110,52 @@ class StuckDongleTests(unittest.TestCase):
         self.assertEqual([s.level for s in res], [80])
 
 
+class ZeroAtPowerOnTests(unittest.TestCase):
+    """Right after power-on the headset reports 0% for a moment (measured on a 4B18)."""
+
+    def setUp(self):
+        self.dongle = FakeDongle(stuck=False, level=0)
+        self.infos = ifaces()
+        self.now = 1000.0
+        for p in (mock.patch.object(audeze.hid, "device", lambda: self.dongle),
+                  mock.patch.object(audeze.hidlist, "enumerate", lambda vid: self.infos),
+                  mock.patch.object(audeze.time, "sleep", lambda s: None),
+                  mock.patch.object(audeze.time, "time", lambda: self.now)):
+            p.start()
+            self.addCleanup(p.stop)
+        self.p = audeze.AudezeProvider()
+
+    def test_zero_right_after_power_on_is_not_a_reading(self):
+        res = self.p.poll()
+        self.assertEqual([(s.level, s.approx) for s in res], [(None, audeze.WAKING_TEXT)])
+        self.assertTrue(self.p.pending)             # the app re-checks in 3 s, not 60
+        self.now += 3
+        self.dongle.level = 80
+        res = self.p.poll()
+        self.assertEqual([(s.level, s.approx) for s in res], [(80, "")])
+        self.assertFalse(self.p.pending)
+
+    def test_zero_after_the_grace_period_is_believed(self):
+        self.p.poll()
+        self.now += audeze.ZERO_GRACE + 1
+        self.assertEqual([s.level for s in self.p.poll()], [0])
+        self.assertFalse(self.p.pending)
+
+    def test_switching_off_and_on_starts_a_new_grace_period(self):
+        self.dongle.level = 80
+        self.p.poll()
+        self.now += 600
+        self.infos = []                             # off: no answer (here: not enumerated)
+        self.p.poll()
+        self.infos = ifaces()
+        self.dongle.level = 0
+        self.now += 60
+        self.assertEqual([s.level for s in self.p.poll()], [None])
+
+    def test_a_real_level_is_shown_at_once(self):
+        self.dongle.level = 55
+        self.assertEqual([s.level for s in self.p.poll()], [55])
+
+
 if __name__ == "__main__":
     unittest.main()

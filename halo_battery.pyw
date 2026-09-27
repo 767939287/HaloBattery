@@ -74,6 +74,7 @@ HEADSET_WORDS = ("blackshark", "kraken", "barracuda", "nari", "thresher", "heads
 DEFAULTS = {
     "interval": 60,      # seconds between polls
     "low": 20,           # low battery notification threshold, %
+    "full_alert": True,  # notification when a charging device reaches 100 %
     "notify": True,
     "bluetooth": True,   # Windows Bluetooth devices
     "badges": True,      # device pictogram inside the ring
@@ -465,6 +466,7 @@ class App:
         self.stop_evt = threading.Event()
         self.diag_requested = threading.Event()
         self.alerted: Dict[str, bool] = {}
+        self.full_state: Dict[str, str] = {}   # key -> charging / full / idle
         self.missing: Dict[str, int] = {}
         self.bt_cache: List[DeviceStatus] = []
         self.anim_tick = 0
@@ -564,6 +566,8 @@ class App:
             Item("Low battery alert at", Menu(*[
                 Item(t, set_low(p), checked=lambda it, p=p: self.cfg["low"] == p, radio=True)
                 for p, t in lows])),
+            Item("Alert when fully charged", toggle("full_alert"),
+                 checked=lambda it: self.cfg.get("full_alert", True)),
             Menu.SEPARATOR,
             Item("Windows Bluetooth devices", toggle("bluetooth"),
                  checked=lambda it: self.cfg["bluetooth"]),
@@ -886,6 +890,7 @@ class App:
                 time.sleep(0.3)   # let the icon register
             ic.update(st)
             self.check_alert(ic, st)
+            self.check_full(ic, st)
 
         # device gone (receiver unplugged): remove the icon after 2 misses in a row;
         # XInput reports a switched-off controller reliably, the Bluetooth provider
@@ -927,6 +932,29 @@ class App:
                 ic.icon.notify(f"{self.display_name(st)}: {left}. Time to charge.", "Low battery")
             except Exception as e:
                 log.warning("notify: %s", e)
+
+    def check_full(self, ic: DeviceIcon, st: DeviceStatus):
+        """A notification when a charging device reaches 100 %, once per charge.
+
+        Only a device that was seen charging below 100 % gets it, so a device that is
+        already full when the app starts does not. Some devices stop reporting
+        "charging" when they are full, so 100 % right after charging counts too. A level
+        that goes 100 -> 99 -> 100 on the charger does not give a second one: the alert
+        comes again only after the device leaves the charger or drops below 95 %."""
+        if st.level is None or not st.online:
+            return
+        prev = self.full_state.get(st.key)
+        if st.level >= 100 and prev == "charging" and self.cfg.get("full_alert", True):
+            try:
+                ic.icon.notify(f"{self.display_name(st)} is fully charged.", "Fully charged")
+            except Exception as e:
+                log.warning("notify: %s", e)
+        if st.level >= 100:
+            self.full_state[st.key] = "full"
+        elif not st.charging:
+            self.full_state[st.key] = "idle"
+        elif not (prev == "full" and st.level >= 95):
+            self.full_state[st.key] = "charging"
 
     def loop(self):
         while not self.stop_evt.is_set():

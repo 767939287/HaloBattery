@@ -5,8 +5,16 @@ Protocol from andrewrabert/python-pulsar-mouse-tool, which also backs the
 
   * 3554:f508  Pulsar X2 V2 Mini (1 kHz dongle)      3554:f507  the same mouse on the cable
   * 3554:f58f  ATK VXE R1 SE+ (wired)                373b:1085  ATK VXE R1 SE+ (2.4 GHz)
+  * 3554:f58a  VXE R1 Pro Max (1 kHz dongle, #87)
   * the Kysona M600 and the VXE Dragonfly R1 Pro use the same protocol (their ids are
     not in the tool, so they are not claimed here).
+
+The ATK and Compx builds are also handled by the OpenMouse project's ATK/VXE panel
+(@openmouse/protocol, drivers/atk): it lists 3554:f58a for the R1 Pro Max receiver
+and 3554:f58c for the same mouse on its cable, and reads the battery with command
+0x04, taking the level, the flag and the millivolts from the same three places this
+file does. It also opens the collection with usage page 0xFF02 and usage 0x0002,
+which is why that one is preferred below.
 
 Frames are 17 bytes, big-endian, report id 0x08:
 
@@ -40,6 +48,7 @@ POWER_INDEX = 7
 VOLTAGE_SLICE = (8, 10)
 
 CONTROL_INTERFACE = 1           # the tool reads its 17-byte replies on interface 1
+CONTROL_USAGE = (0xFF02, 0x0002)   # the collection the OpenMouse ATK/VXE panel opens
 
 READ_ATTEMPTS = 4
 READ_TIMEOUT_MS = 250
@@ -51,6 +60,7 @@ PIDS: Dict[int, Dict[int, str]] = {
         0xF508: "Pulsar X2 V2 Mini (wireless)",
         0xF507: "Pulsar X2 V2 Mini (wired)",
         0xF58F: "ATK VXE R1 SE+ (wired)",
+        0xF58A: "VXE R1 Pro Max (2.4 GHz)",
     },
     0x373B: {
         0x1085: "ATK VXE R1 SE+ (2.4 GHz)",
@@ -96,6 +106,18 @@ class PulsarProvider(Provider):
         self._diag: List[str] = []
 
     def _pick(self, infos: List[dict]) -> Optional[dict]:
+        """The collection to open.
+
+        The ATK/VXE panel of the OpenMouse project opens the collection with usage
+        page 0xFF02 and usage 0x0002 and sends its report-0x08 frames there, so that
+        one is tried first - the R1 Pro Max dongle has it next to four other
+        interface-1 collections, and the first of those is not the one it answers
+        on. Without it, the first interface-1 collection is used, which is where the
+        reference tool reads its replies.
+        """
+        for d in infos:
+            if (d.get("usage_page"), d.get("usage")) == CONTROL_USAGE:
+                return d
         for d in infos:
             if d.get("interface_number") == CONTROL_INTERFACE:
                 return d

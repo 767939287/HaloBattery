@@ -13,6 +13,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
 - **Icon** in the menu of a device: pick its pictogram (Automatic, Mouse, Keyboard, Headset,
   Controller, Bluetooth), for example a controller over Bluetooth that got the Bluetooth
   pictogram. The choice is kept per device, like the name.
+- Logitech headsets: G533, G535, G633, G635, G733, G933, G935, G PRO, G PRO X and
+  G PRO X 2 (HID++ models). The app reads the battery voltage with feature 0x1F20 and
+  shows the level, charging, and "headset off". The model list comes from
+  HeadsetControl; the feature layout comes from Solaar. A G733 is read on hardware (#75);
+  its percentage is an estimate from the voltage and can differ from G HUB's.
+- Logitech receivers are also recognised by their product id (Solaar's list), not
+  only by "receiver" in the product name.
 - SteelSeries: older and other Arctis headsets. Not tested on these headsets; the raw
   replies go to the diagnostics.
   - On the `b0` exchange (interface 3): Arctis Nova 7P, Nova 3P / 3X Wireless,
@@ -30,6 +37,20 @@ and the project follows [Semantic Versioning](https://semver.org/).
   after a mouse woke up from sleep (#95, #38). The "no devices" icon is now made once
   and only shown or hidden, and an icon is shown only after its window exists. pystray
   ignores a stop and loses a show that comes before that.
+- Logitech: "slow charging" (status 4) now shows as charging.
+- Logitech: an error reply is accepted only when it answers our own request. Before,
+  an error reply to G HUB's request could make a mouse show as "off".
+- Logitech: the receiver's error code now tells an empty slot (08) from a device
+  that is switched off (09). When a slot becomes empty, the app forgets the old
+  device name, so a new device in that slot shows its own name.
+- Logitech: a device that reports no percentage (unified battery level 0) showed 0%
+  and could trigger the low battery alert. It now shows the approximate level from
+  the level flags ("about 50% (good)"), as Solaar does.
+- Logitech: each request now uses a different software id. A late reply to an earlier
+  request can no longer be taken as the reply to the current one.
+- Logitech: a device name that could not be read (for example just after the mouse
+  wakes up) is no longer kept until the app restarts. When the icon key of a slot
+  changes, the old icon goes away at once instead of staying grey for 5 minutes.
 - Arctis Nova 7: while the headset is off or still switching on, the dongle repeats
   the last battery level. The app showed that old level as live for a few seconds.
   The link byte (byte 1: 03 = connected, 02 = not connected) is now checked too.

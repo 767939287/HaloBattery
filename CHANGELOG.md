@@ -7,6 +7,12 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Fully charged**: a notification when a charging device reaches 100%, once per charge
+  (a 99/100% wobble on the charger does not repeat it). "Alert when fully charged" in
+  Preferences turns it off.
+- **Icon** in the menu of a device: pick its pictogram (Automatic, Mouse, Keyboard, Headset,
+  Controller, Bluetooth), for example a controller over Bluetooth that got the Bluetooth
+  pictogram. The choice is kept per device, like the name.
 - Logitech headsets: G533, G535, G633, G635, G733, G933, G935, G PRO, G PRO X and
   G PRO X 2 (HID++ models). The app reads the battery voltage with feature 0x1F20 and
   shows the level, charging, and "headset off". The model list comes from
@@ -27,6 +33,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
     a request. The Arctis Pro GameDAC is left out, because it is a wired headset.
 
 ### Fixed
+- Tray: an extra "No devices found" icon could stay next to a device icon, for example
+  after a mouse woke up from sleep (#95, #38). The "no devices" icon is now made once
+  and only shown or hidden, and an icon is shown only after its window exists. pystray
+  ignores a stop and loses a show that comes before that.
 - Logitech: "slow charging" (status 4) now shows as charging.
 - Logitech: an error reply is accepted only when it answers our own request. Before,
   an error reply to G HUB's request could make a mouse show as "off".

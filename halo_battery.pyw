@@ -74,6 +74,7 @@ HEADSET_WORDS = ("blackshark", "kraken", "barracuda", "nari", "thresher", "heads
 DEFAULTS = {
     "interval": 60,      # seconds between polls
     "low": 20,           # low battery notification threshold, %
+    "full_alert": True,  # notification when a charging device reaches 100 %
     "notify": True,
     "bluetooth": True,   # Windows Bluetooth devices
     "badges": True,      # device pictogram inside the ring
@@ -224,6 +225,10 @@ def badge_for(st: DeviceStatus) -> str:
     return "mouse"
 
 
+# the pictograms a user can pick for one device ("Icon" in its menu); "" = automatic
+PICTOGRAM_CHOICES = (("", "Automatic"), ("mouse", "Mouse"), ("keyboard", "Keyboard"),
+                     ("headset", "Headset"), ("gamepad", "Controller"), ("bluetooth", "Bluetooth"))
+
 GAMEPAD_WORDS = ("controller", "gamepad", "joystick", "joy-con")
 
 
@@ -360,6 +365,12 @@ def ask_name(current: str) -> Optional[str]:
 
 
 # ------------------------------------------------------------- application
+# how long to wait for a tray icon's own thread to create its window. pystray makes
+# the window in that thread; until then, showing, hiding or stopping the icon has no
+# effect (stop() is ignored, and a show is lost).
+ICON_READY_TIMEOUT = 5.0
+
+
 class DeviceIcon:
     """A separate tray icon for one device."""
 
@@ -372,7 +383,11 @@ class DeviceIcon:
         self._images: Dict[tuple, object] = {}  # state -> image or frames, both colours
         self.icon = pystray.Icon(f"{APP_NAME}_{abs(hash(key))}",
                                  icons.render(None, False, False, light_taskbar=app.light_taskbar), APP_TITLE, app.build_menu(self))
-        self.thread = threading.Thread(target=self.icon.run, daemon=True)
+        # pystray calls the setup function once the icon's window exists. The app shows
+        # the icon itself (in _update), after that, so a show is never lost.
+        self.ready = threading.Event()
+        self.thread = threading.Thread(target=self.icon.run, args=(lambda icon: self.ready.set(),),
+                                       daemon=True)
         self.thread.start()
 
     def update(self, st: DeviceStatus) -> None:
@@ -381,7 +396,7 @@ class DeviceIcon:
 
     def _update(self, st: DeviceStatus) -> None:
         self.status = st
-        badge = badge_for(st) if self.app.cfg["badges"] else ""
+        badge = self.app.pictogram(st) if self.app.cfg["badges"] else ""
         animate = (self.app.cfg["animation"] and st.charging and st.online
                    and st.level is not None)
         state = (st.level, st.charging, st.online, self.app.cfg["low"],
@@ -406,7 +421,8 @@ class DeviceIcon:
                 self.icon.update_menu()
             except Exception:
                 pass
-        if not self.icon.visible:
+        ready = getattr(self, "ready", None)
+        if not self.icon.visible and (ready is None or ready.wait(ICON_READY_TIMEOUT)):
             try:
                 self.icon.visible = True
             except Exception:
@@ -465,6 +481,7 @@ class App:
         self.stop_evt = threading.Event()
         self.diag_requested = threading.Event()
         self.alerted: Dict[str, bool] = {}
+        self.full_state: Dict[str, str] = {}   # key -> charging / full / idle
         self.missing: Dict[str, int] = {}
         self.bt_cache: List[DeviceStatus] = []
         self.anim_tick = 0
@@ -539,6 +556,14 @@ class App:
         def renamed(_item):
             return bool(owner and owner.status and owner.status.key in self._settings_map("names"))
 
+        def picked(value):
+            return lambda _item: bool(owner and owner.status) and (
+                self._settings_map("icons").get(owner.status.key, "") == value)
+
+        def pick(value):
+            # pystray accepts only actions with 0-2 parameters
+            return lambda icon, item: self.set_pictogram(owner, value)
+
         def show_again(key):
             # pystray accepts only actions with 0-2 parameters, so no "k=key" default here
             return lambda icon, item: self.unhide(key)
@@ -553,6 +578,8 @@ class App:
         device_items = [
             Item("Rename…", lambda i, it: self.rename(owner)),
             Item("Reset name", lambda i, it: self.reset_name(owner), visible=renamed),
+            Item("Icon", Menu(*[Item(label, pick(value), checked=picked(value), radio=True)
+                                for value, label in PICTOGRAM_CHOICES])),
             Item("Hide this device", lambda i, it: self.hide(owner)),
         ] if owner is not None else []
 
@@ -564,6 +591,8 @@ class App:
             Item("Low battery alert at", Menu(*[
                 Item(t, set_low(p), checked=lambda it, p=p: self.cfg["low"] == p, radio=True)
                 for p, t in lows])),
+            Item("Alert when fully charged", toggle("full_alert"),
+                 checked=lambda it: self.cfg.get("full_alert", True)),
             Menu.SEPARATOR,
             Item("Windows Bluetooth devices", toggle("bluetooth"),
                  checked=lambda it: self.cfg["bluetooth"]),
@@ -598,8 +627,9 @@ class App:
 
     # ---------------- hide / rename
     def _settings_map(self, key: str) -> Dict[str, str]:
-        """cfg["hidden"] or cfg["names"]: device key -> name. A value that is not a
-        dict (a hand-edited or damaged settings file) is replaced by an empty one."""
+        """cfg["hidden"] or cfg["names"] (device key -> name), or cfg["icons"] (device
+        key -> pictogram). A value that is not a dict (a hand-edited or damaged settings
+        file) is replaced by an empty one."""
         value = self.cfg.get(key)
         if not isinstance(value, dict):
             value = self.cfg[key] = {}
@@ -670,6 +700,28 @@ class App:
             self._settings_map("names").pop(owner.status.key, None)
             save_config(self.cfg)
         owner.update(owner.status)
+        self.refresh_menus()
+
+    def pictogram(self, st: DeviceStatus) -> str:
+        """The pictogram the user picked for this device, or the automatic one."""
+        choice = self._settings_map("icons").get(st.key)
+        if isinstance(choice, str) and choice in icons.PICTOS:
+            return choice
+        return badge_for(st)
+
+    def set_pictogram(self, owner: Optional[DeviceIcon], value: str) -> None:
+        """"Icon" in the device menu: "" goes back to the automatic pictogram."""
+        if owner is None or owner.status is None:
+            return
+        with self.lock:
+            chosen = self._settings_map("icons")
+            if value:
+                chosen[owner.status.key] = value
+            else:
+                chosen.pop(owner.status.key, None)
+            save_config(self.cfg)
+        log.info("icon of [%s]: %s", owner.status.key, value or "automatic")
+        owner.update(owner.status)            # redraw at once
         self.refresh_menus()
 
     # ---------------- icon colour
@@ -777,6 +829,8 @@ class App:
         hidden, names = self._settings_map("hidden"), self._settings_map("names")
         lines += [f"hidden by the user: {n}   [{k}]" for k, n in hidden.items()]
         lines += [f"renamed by the user: {n}   [{k}]" for k, n in names.items()]
+        lines += [f"icon picked by the user: {v}   [{k}]"
+                  for k, v in self._settings_map("icons").items()]
         lines.append("")
         lines.append("=== Icon colour ===")
         lines.append(f"mode: {self.cfg.get('icon_theme', 'auto')}, icons drawn for a "
@@ -883,9 +937,9 @@ class App:
             if ic is None:
                 ic = DeviceIcon(self, st.key)
                 self.icons[st.key] = ic
-                time.sleep(0.3)   # let the icon register
             ic.update(st)
             self.check_alert(ic, st)
+            self.check_full(ic, st)
 
         # device gone (receiver unplugged): remove the icon after 2 misses in a row;
         # XInput reports a switched-off controller reliably, the Bluetooth provider
@@ -903,15 +957,35 @@ class App:
                     # 3-second re-check in wait_next() would go on forever
                     self.missing.pop(key, None)
 
-        if self.icons and self.placeholder:
-            self.placeholder.stop()
-            self.placeholder = None
-        elif not self.icons and not self.placeholder:
+        self.show_placeholder(not self.icons)
+
+    def show_placeholder(self, show: bool) -> None:
+        """The "no devices" icon. It is made once and after that only shown or hidden.
+
+        Stopping it and making a new one each time a device came or went could leave
+        a copy in the tray: pystray ignores stop() until the icon's thread has made
+        its window, and its default setup can show the icon again after stop() (#38,
+        #95). Showing and hiding one icon, after its window exists, has neither problem.
+        """
+        if self.placeholder is None:
+            if not show:
+                return
+            ready = threading.Event()
             self.placeholder = pystray.Icon(f"{APP_NAME}_idle",
                                             icons.render(None, False, False, light_taskbar=self.light_taskbar),
                                             f"{APP_TITLE}: no devices found",
                                             self.build_menu(None))
-            threading.Thread(target=self.placeholder.run, daemon=True).start()
+            self.placeholder_ready = ready
+            threading.Thread(target=self.placeholder.run, args=(lambda icon: ready.set(),),
+                             daemon=True).start()
+        if not self.placeholder_ready.wait(ICON_READY_TIMEOUT):
+            log.warning("tray: the \"no devices\" icon did not start in %.0f s", ICON_READY_TIMEOUT)
+            return
+        if bool(self.placeholder.visible) != show:
+            try:
+                self.placeholder.visible = show
+            except Exception as e:
+                log.warning("tray: %s", e)
 
     def check_alert(self, ic: DeviceIcon, st: DeviceStatus):
         low = self.cfg["low"]
@@ -927,6 +1001,29 @@ class App:
                 ic.icon.notify(f"{self.display_name(st)}: {left}. Time to charge.", "Low battery")
             except Exception as e:
                 log.warning("notify: %s", e)
+
+    def check_full(self, ic: DeviceIcon, st: DeviceStatus):
+        """A notification when a charging device reaches 100 %, once per charge.
+
+        Only a device that was seen charging below 100 % gets it, so a device that is
+        already full when the app starts does not. Some devices stop reporting
+        "charging" when they are full, so 100 % right after charging counts too. A level
+        that goes 100 -> 99 -> 100 on the charger does not give a second one: the alert
+        comes again only after the device leaves the charger or drops below 95 %."""
+        if st.level is None or not st.online:
+            return
+        prev = self.full_state.get(st.key)
+        if st.level >= 100 and prev == "charging" and self.cfg.get("full_alert", True):
+            try:
+                ic.icon.notify(f"{self.display_name(st)} is fully charged.", "Fully charged")
+            except Exception as e:
+                log.warning("notify: %s", e)
+        if st.level >= 100:
+            self.full_state[st.key] = "full"
+        elif not st.charging:
+            self.full_state[st.key] = "idle"
+        elif not (prev == "full" and st.level >= 95):
+            self.full_state[st.key] = "charging"
 
     def loop(self):
         while not self.stop_evt.is_set():

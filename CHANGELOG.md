@@ -21,6 +21,15 @@ and the project follows [Semantic Versioning](https://semver.org/).
   to 3 s, not just this one, so it never got cheaper. The fast path is now given up 120 s after
   a reading first goes missing, with the reason in the diagnostics; the icon stays, the poll
   cost does not.
+- **A DualShock 4 wireless adapter with no controller on it no longer shows a 0% icon.** The
+  adapter (`054C:0BA0`) streams report `01` whether or not a controller is paired with it, and
+  fills the battery field with zeros in that case - which was read as a real 0% reading, and at
+  0% the app also raises its low-battery alert, for a controller that is not there. Bit 2 of
+  `status[1]` is the adapter's "no controller connected" flag: the Linux driver calls it
+  `DS4_STATUS1_DONGLE_STATE` and treats it as not connected (`hid-playstation.c`; `hid-sony.c`
+  has no DualShock 4 or dongle code any more). The adapter is now left without a reading when
+  that bit is set, and the diagnostics say so. Reported by @ahmedkhursheed23 in
+  [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
 
 ## [1.11.0] - 2026-09-27
 
@@ -120,6 +129,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
   other collection; the diagnostics list what the dongle offers instead.
 
 ### Fixed
+- `--probe` now always lists every HID device it can see. The list was only printed when
+  the poll found nothing at all, so on a machine whose other devices answered, a device
+  that no provider sees - the case the list exists for - never appeared (found while
+  answering #21).
 - Razer mice that answer a battery request with somebody else's packet first are no
   longer written off as "off or asleep". Razer Synapse polls LED state on the same
   collection and its replies carry the same status byte as the battery reply, so the

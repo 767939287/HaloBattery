@@ -16,3 +16,4 @@ from .hyperx_cloud3 import HyperXCloud3Provider  # noqa: F401
 from .playstation import PlayStationProvider  # noqa: F401
 from .nintendo import NintendoProvider  # noqa: F401
 from .asus import AsusProvider  # noqa: F401
+from .gwolves import GWolvesProvider  # noqa: F401

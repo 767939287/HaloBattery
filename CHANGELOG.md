@@ -176,6 +176,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
   Aimpoint / EVA, Harpe Ace Aim Lab, Spatha X, Pugio II, Strix Impact II Wireless, TUF M4
   Wireless and TX / TUF Gaming Mini. **Unverified** - no ASUS mouse was on hand.
   `tests/test_asus.py` uses the interfaces from the #81 report.
+- G-Wolves mice on the 8K receiver (`33E4:3854`) or the cable (#82: G-Wolves WARG 8K), with the
+  WLmouse feature report exchange that G-Wolves' own web driver (mouse.xyz) uses for these
+  mice. The request goes only to the collection with a 64-byte feature report. **Unverified** -
+  no G-Wolves mouse was on hand. `tests/test_gwolves.py` uses the collections from the #82 report.
 
 ## [1.11.0] - 2026-09-27
 

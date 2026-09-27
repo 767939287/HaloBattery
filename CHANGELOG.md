@@ -147,6 +147,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
   `tests/test_razer.py` checks the table against a copy of OpenRazer's list.
 
 ### Changed
+- **The keyboard pictogram is a single keycap with a K.** The old one, a whole keyboard with
+  rows of keys cut out, turned into a grey bar at 16 px; one square key with a bold K reads
+  at tray size on a light and a dark taskbar and does not look like the mouse.
 - The settings are in a **Preferences** submenu: poll interval, low battery alert,
   Bluetooth, pictogram, charging animation, icon colour, start with Windows and the
   update check. The main menu keeps the items used often.

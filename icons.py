@@ -82,26 +82,29 @@ def _mouse(d: ImageDraw.ImageDraw, cx: float, cy: float, s: float, col):
     d.line((_r(cx - w), _r(cy - s * 0.2), _r(cx + w), _r(cy - s * 0.2)), fill=CLEAR, width=lw)
 
 
+def _keycap_k(d: ImageDraw.ImageDraw, cx: float, cy: float, h: float, lw: float):
+    """Cut out a K of height 2h around (cx, cy), with round stroke ends."""
+    x0 = cx - h * 0.48
+    ends = ((x0, cy - h), (x0, cy + h), (cx + h * 0.55, cy - h), (cx + h * 0.58, cy + h))
+    d.line((_r(x0), _r(cy - h), _r(x0), _r(cy + h)), fill=CLEAR, width=_r(lw))
+    xj = x0 + lw * 0.35
+    d.line((_r(xj), _r(cy + h * 0.08), _r(ends[2][0]), _r(ends[2][1])), fill=CLEAR, width=_r(lw))
+    d.line((_r(xj + h * 0.22), _r(cy - h * 0.12), _r(ends[3][0]), _r(ends[3][1])),
+           fill=CLEAR, width=_r(lw))
+    for x, y in ends:
+        d.ellipse((_r(x - lw / 2), _r(y - lw / 2), _r(x + lw / 2), _r(y + lw / 2)), fill=CLEAR)
+
+
 def _keyboard(d: ImageDraw.ImageDraw, cx: float, cy: float, s: float, col):
-    """Keyboard silhouette: a wide, low body with chunky key rows cut out.
+    """Keyboard: one keycap with a K cut out.
 
-    Wide and low is what separates it from the mouse at this size; the keys are cut out
-    rather than drawn (like the mouse's buttons), so the shape reads on a light and a
-    dark taskbar alike."""
-    w, h = s * 1.18, s * 0.52
-    d.rounded_rectangle((_r(cx - w), _r(cy - h), _r(cx + w), _r(cy + h)),
-                        radius=_r(h * 0.3), fill=col)
-    lw = _r(max(2.0, s * 0.16))
-    for dy, n in ((-0.46, 4), (0.02, 4)):
-        span = w * 0.6
-        step = (2 * span) / (n - 1)
-        for i in range(n):
-            x = cx - span + i * step
-            y = cy + dy * h
-            d.line((_r(x - lw * 0.6), _r(y), _r(x + lw * 0.6), _r(y)), fill=CLEAR, width=lw)
-    d.line((_r(cx - w * 0.66), _r(cy + h * 0.5), _r(cx + w * 0.66), _r(cy + h * 0.5)),
-           fill=CLEAR, width=lw)
-
+    A single key reads at 16 px where a whole keyboard with its rows of keys turned into
+    a grey bar; the square keycap is also clearly different from the tall mouse. The K
+    is cut out (like the mouse's buttons), so it shows on a light and a dark taskbar."""
+    a = s * 0.95
+    d.rounded_rectangle((_r(cx - a), _r(cy - a), _r(cx + a), _r(cy + a)),
+                        radius=_r(a * 0.3), fill=col)
+    _keycap_k(d, cx + a * 0.02, cy, a * 0.58, max(3.2, s * 0.25))
 
 
 def _bluetooth(d: ImageDraw.ImageDraw, cx: float, cy: float, s: float, col):
@@ -191,7 +194,7 @@ def _dualshock(d: ImageDraw.ImageDraw, cx: float, cy: float, s: float, col):
 
 PICTOS = {"headset": (_headset, 0, 2, 18), "mouse": (_mouse, 0, 0, 19.5),
           "bluetooth": (_bluetooth, 0, 0, 18), "gamepad": (_gamepad, 0, 0, 18.4),
-          "keyboard": (_keyboard, 0, 0, 15.5),
+          "keyboard": (_keyboard, 0, 0, 17),
           "dualshock": (_dualshock, 0, -0.2, 18.4),
           "dualsense": (_dualshock, 0, -0.2, 18.4)}   # its own silhouette is still to come
 

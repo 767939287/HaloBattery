@@ -7,6 +7,20 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Razer: the model table now has every wireless mouse whose battery OpenRazer reads, with
+  OpenRazer's transaction id: for example the Pro Click V2 Vertical Edition (#58), Pro Click V2,
+  Pro Click (Mini), Naga V2 Pro, Naga V2 HyperSpeed, Viper V3 HyperSpeed, Viper Mini SE,
+  DeathAdder V3 HyperSpeed, Basilisk Mobile, Orochi V2, Atheris and the older Mamba / Lancehead
+  mice. Before, a mouse without "wireless" or "HyperSpeed" in its name was skipped.
+  `tests/test_razer.py` checks the table against a copy of OpenRazer's list.
+
+### Fixed
+- Razer: PIDs 008F / 0090 are the Naga Pro, not the Naga V2 Pro (OpenRazer). The Naga V2 Pro
+  (00A7 / 00A8) was missing and was skipped.
+- Razer: the Basilisk X HyperSpeed (0083) is asked with transaction id 0xFF first, as in
+  OpenRazer, not 0x1F.
+- Razer: PID 0078 is the wired Razer Viper, which has no battery. It was in the table as a
+  "Viper Ultimate" and got battery requests. The Viper Ultimate is 007A / 007B.
 - Razer Barracuda Pro (2.4 GHz) support through its receiver (1532:053a), which does not
   answer the standard Razer request: the headset speaks the "PA" protocol, decoded from a
   USBPcap capture of Razer Synapse on a real unit. Battery command 0x21, charging 0x2A, and

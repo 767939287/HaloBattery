@@ -61,7 +61,7 @@ import updates  # noqa: E402
 import winevents  # noqa: E402
 from providers import hidlist  # noqa: E402
 from providers import (AudezeProvider, BarracudaProvider, BluetoothProvider, DeviceStatus,  # noqa: E402
-                       HyperXProvider, LogitechProvider, MchoseProvider, PlayStationProvider,
+                       HyperXProvider, JblProvider, LogitechProvider, MchoseProvider, PlayStationProvider,
                        RazerProvider, SteelSeriesProvider, WLmouseProvider, XInputProvider)
 from providers.bluetooth import BluetoothWatcher  # noqa: E402
 
@@ -414,7 +414,7 @@ class App:
         self.win_events: Optional[winevents.WindowEventWatcher] = None
         self.light_taskbar = self.compute_light()
         self.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
-                          HyperXProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
+                          HyperXProvider(), JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
                           PlayStationProvider(), BarracudaProvider()]
         self.bt = BluetoothProvider()
         self.icons: Dict[str, DeviceIcon] = {}
@@ -979,7 +979,7 @@ def probe():
     app = App.__new__(App)
     app.cfg = load_config()
     app.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
-                     HyperXProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
+                     HyperXProvider(), JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
                      PlayStationProvider(), BarracudaProvider()]
     app.bt = BluetoothProvider()
     res = []

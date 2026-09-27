@@ -85,7 +85,7 @@ def make_app(cfg=None):
     app = hb.App.__new__(hb.App)
     app.cfg = dict(hb.DEFAULTS, **(cfg or {}))
     app.lock = threading.RLock()
-    app.icons, app.missing, app.alerted = {}, {}, {}
+    app.icons, app.missing, app.alerted, app.full_state = {}, {}, {}, {}
     app.placeholder = None
     app.wake = threading.Event()
     app.light_taskbar = False
@@ -247,7 +247,7 @@ class MenuLayoutTests(HideRenameTestCase):
         app.apply([dev()])
         texts = [i.text for i in app.build_menu(app.icons["logitech:C15E09CD"]).items
                  if i.visible and i is not hb.Menu.SEPARATOR]
-        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Hide this device",
+        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Icon", "Hide this device",
                                  "Refresh now", "Preferences", "Diagnostics…",
                                  f"Exit (v{hb.VERSION})"])
 
@@ -256,7 +256,7 @@ class MenuLayoutTests(HideRenameTestCase):
         app.apply([dev()])
         texts = [i.text for i in app.build_menu(app.icons["logitech:C15E09CD"]).items
                  if i.visible and i is not hb.Menu.SEPARATOR]
-        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Hide this device",
+        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Icon", "Hide this device",
                                  "Refresh now", "Preferences", "Hidden devices",
                                  "Diagnostics…", f"Exit (v{hb.VERSION})"])
 
@@ -265,8 +265,8 @@ class MenuLayoutTests(HideRenameTestCase):
         menu = app.build_menu(None)
         prefs = next(i for i in menu.items if i.text == "Preferences").submenu
         texts = [i.text for i in prefs.items if i is not hb.Menu.SEPARATOR]
-        self.assertEqual(texts, ["Poll interval", "Low battery alert at", "Windows Bluetooth devices",
-                                 "Device pictogram", "Charging animation", "Icon colour",
+        self.assertEqual(texts, ["Poll interval", "Low battery alert at", "Alert when fully charged",
+                                 "Windows Bluetooth devices", "Device pictogram", "Charging animation", "Icon colour",
                                  "Start with Windows", "Check for updates"])
 
 

@@ -74,6 +74,7 @@ HEADSET_WORDS = ("blackshark", "kraken", "barracuda", "nari", "thresher", "heads
 DEFAULTS = {
     "interval": 60,      # seconds between polls
     "low": 20,           # low battery notification threshold, %
+    "full_alert": True,  # notification when a charging device reaches 100 %
     "notify": True,
     "bluetooth": True,   # Windows Bluetooth devices
     "badges": True,      # device pictogram inside the ring
@@ -223,6 +224,10 @@ def badge_for(st: DeviceStatus) -> str:
         return "bluetooth"
     return "mouse"
 
+
+# the pictograms a user can pick for one device ("Icon" in its menu); "" = automatic
+PICTOGRAM_CHOICES = (("", "Automatic"), ("mouse", "Mouse"), ("keyboard", "Keyboard"),
+                     ("headset", "Headset"), ("gamepad", "Controller"), ("bluetooth", "Bluetooth"))
 
 GAMEPAD_WORDS = ("controller", "gamepad", "joystick", "joy-con")
 
@@ -391,7 +396,7 @@ class DeviceIcon:
 
     def _update(self, st: DeviceStatus) -> None:
         self.status = st
-        badge = badge_for(st) if self.app.cfg["badges"] else ""
+        badge = self.app.pictogram(st) if self.app.cfg["badges"] else ""
         animate = (self.app.cfg["animation"] and st.charging and st.online
                    and st.level is not None)
         state = (st.level, st.charging, st.online, self.app.cfg["low"],
@@ -476,6 +481,7 @@ class App:
         self.stop_evt = threading.Event()
         self.diag_requested = threading.Event()
         self.alerted: Dict[str, bool] = {}
+        self.full_state: Dict[str, str] = {}   # key -> charging / full / idle
         self.missing: Dict[str, int] = {}
         self.bt_cache: List[DeviceStatus] = []
         self.anim_tick = 0
@@ -550,6 +556,14 @@ class App:
         def renamed(_item):
             return bool(owner and owner.status and owner.status.key in self._settings_map("names"))
 
+        def picked(value):
+            return lambda _item: bool(owner and owner.status) and (
+                self._settings_map("icons").get(owner.status.key, "") == value)
+
+        def pick(value):
+            # pystray accepts only actions with 0-2 parameters
+            return lambda icon, item: self.set_pictogram(owner, value)
+
         def show_again(key):
             # pystray accepts only actions with 0-2 parameters, so no "k=key" default here
             return lambda icon, item: self.unhide(key)
@@ -564,6 +578,8 @@ class App:
         device_items = [
             Item("Rename…", lambda i, it: self.rename(owner)),
             Item("Reset name", lambda i, it: self.reset_name(owner), visible=renamed),
+            Item("Icon", Menu(*[Item(label, pick(value), checked=picked(value), radio=True)
+                                for value, label in PICTOGRAM_CHOICES])),
             Item("Hide this device", lambda i, it: self.hide(owner)),
         ] if owner is not None else []
 
@@ -575,6 +591,8 @@ class App:
             Item("Low battery alert at", Menu(*[
                 Item(t, set_low(p), checked=lambda it, p=p: self.cfg["low"] == p, radio=True)
                 for p, t in lows])),
+            Item("Alert when fully charged", toggle("full_alert"),
+                 checked=lambda it: self.cfg.get("full_alert", True)),
             Menu.SEPARATOR,
             Item("Windows Bluetooth devices", toggle("bluetooth"),
                  checked=lambda it: self.cfg["bluetooth"]),
@@ -609,8 +627,9 @@ class App:
 
     # ---------------- hide / rename
     def _settings_map(self, key: str) -> Dict[str, str]:
-        """cfg["hidden"] or cfg["names"]: device key -> name. A value that is not a
-        dict (a hand-edited or damaged settings file) is replaced by an empty one."""
+        """cfg["hidden"] or cfg["names"] (device key -> name), or cfg["icons"] (device
+        key -> pictogram). A value that is not a dict (a hand-edited or damaged settings
+        file) is replaced by an empty one."""
         value = self.cfg.get(key)
         if not isinstance(value, dict):
             value = self.cfg[key] = {}
@@ -681,6 +700,28 @@ class App:
             self._settings_map("names").pop(owner.status.key, None)
             save_config(self.cfg)
         owner.update(owner.status)
+        self.refresh_menus()
+
+    def pictogram(self, st: DeviceStatus) -> str:
+        """The pictogram the user picked for this device, or the automatic one."""
+        choice = self._settings_map("icons").get(st.key)
+        if isinstance(choice, str) and choice in icons.PICTOS:
+            return choice
+        return badge_for(st)
+
+    def set_pictogram(self, owner: Optional[DeviceIcon], value: str) -> None:
+        """"Icon" in the device menu: "" goes back to the automatic pictogram."""
+        if owner is None or owner.status is None:
+            return
+        with self.lock:
+            chosen = self._settings_map("icons")
+            if value:
+                chosen[owner.status.key] = value
+            else:
+                chosen.pop(owner.status.key, None)
+            save_config(self.cfg)
+        log.info("icon of [%s]: %s", owner.status.key, value or "automatic")
+        owner.update(owner.status)            # redraw at once
         self.refresh_menus()
 
     # ---------------- icon colour
@@ -788,6 +829,8 @@ class App:
         hidden, names = self._settings_map("hidden"), self._settings_map("names")
         lines += [f"hidden by the user: {n}   [{k}]" for k, n in hidden.items()]
         lines += [f"renamed by the user: {n}   [{k}]" for k, n in names.items()]
+        lines += [f"icon picked by the user: {v}   [{k}]"
+                  for k, v in self._settings_map("icons").items()]
         lines.append("")
         lines.append("=== Icon colour ===")
         lines.append(f"mode: {self.cfg.get('icon_theme', 'auto')}, icons drawn for a "
@@ -896,6 +939,7 @@ class App:
                 self.icons[st.key] = ic
             ic.update(st)
             self.check_alert(ic, st)
+            self.check_full(ic, st)
 
         # device gone (receiver unplugged): remove the icon after 2 misses in a row;
         # XInput reports a switched-off controller reliably, the Bluetooth provider
@@ -957,6 +1001,29 @@ class App:
                 ic.icon.notify(f"{self.display_name(st)}: {left}. Time to charge.", "Low battery")
             except Exception as e:
                 log.warning("notify: %s", e)
+
+    def check_full(self, ic: DeviceIcon, st: DeviceStatus):
+        """A notification when a charging device reaches 100 %, once per charge.
+
+        Only a device that was seen charging below 100 % gets it, so a device that is
+        already full when the app starts does not. Some devices stop reporting
+        "charging" when they are full, so 100 % right after charging counts too. A level
+        that goes 100 -> 99 -> 100 on the charger does not give a second one: the alert
+        comes again only after the device leaves the charger or drops below 95 %."""
+        if st.level is None or not st.online:
+            return
+        prev = self.full_state.get(st.key)
+        if st.level >= 100 and prev == "charging" and self.cfg.get("full_alert", True):
+            try:
+                ic.icon.notify(f"{self.display_name(st)} is fully charged.", "Fully charged")
+            except Exception as e:
+                log.warning("notify: %s", e)
+        if st.level >= 100:
+            self.full_state[st.key] = "full"
+        elif not st.charging:
+            self.full_state[st.key] = "idle"
+        elif not (prev == "full" and st.level >= 95):
+            self.full_state[st.key] = "charging"
 
     def loop(self):
         while not self.stop_evt.is_set():

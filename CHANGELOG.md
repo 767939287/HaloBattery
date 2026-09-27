@@ -7,6 +7,12 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Fully charged**: a notification when a charging device reaches 100%, once per charge
+  (a 99/100% wobble on the charger does not repeat it). "Alert when fully charged" in
+  Preferences turns it off.
+- **Icon** in the menu of a device: pick its pictogram (Automatic, Mouse, Keyboard, Headset,
+  Controller, Bluetooth), for example a controller over Bluetooth that got the Bluetooth
+  pictogram. The choice is kept per device, like the name.
 - SteelSeries: older and other Arctis headsets. Not tested on these headsets; the raw
   replies go to the diagnostics.
   - On the `b0` exchange (interface 3): Arctis Nova 7P, Nova 3P / 3X Wireless,

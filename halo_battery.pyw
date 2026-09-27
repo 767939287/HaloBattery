@@ -44,6 +44,7 @@ CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 LOG_PATH = os.path.join(DATA_DIR, "halo_battery.log")
 DIAG_PATH = os.path.join(DATA_DIR, "diagnostics.txt")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.json")
+STATUS_PATH = os.path.join(DATA_DIR, "status.json")
 
 log = logging.getLogger("halo_battery")
 log.setLevel(logging.INFO)
@@ -90,6 +91,9 @@ DEFAULTS = {
     "disabled_providers": [],     # provider names turned off in Preferences > Device types
     "playstation_bluetooth": True,  # read PlayStation controllers over Bluetooth too (#96)
     "time_left": True,      # "about N h of use left" in the tooltip (history.py)
+    "percent_in_icon": False,  # the level as a number in the ring, instead of the pictogram
+    "quiet_fullscreen": True,  # while a game is full screen: hold alerts, poll every 5 min
+    "status_file": False,      # write status.json for Rainmeter, Stream Deck, scripts
 }
 
 # Preferences > Device types: provider name -> what the user sees. Windows Bluetooth
@@ -156,6 +160,23 @@ def save_config(cfg: dict) -> None:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
     except OSError as e:
         log.warning("save_config: %s", e)
+
+
+# ------------------------------------------------------------ status file
+def write_json(path: str, data: dict) -> None:
+    """Write to a temporary file and swap it in, so a reader (Rainmeter reads the
+    status file every few seconds) never sees half a file."""
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
+
+
+def remove_status_file() -> None:
+    try:
+        os.remove(STATUS_PATH)
+    except OSError:
+        pass
 
 
 # ------------------------------------------------------------- autostart
@@ -246,6 +267,26 @@ def single_instance() -> bool:
     import ctypes
     ctypes.windll.kernel32.CreateMutexW(None, False, "Global\\HaloBattery_single_instance")
     return ctypes.windll.kernel32.GetLastError() != 183  # ERROR_ALREADY_EXISTS
+
+
+# SHQueryUserNotificationState: what Windows itself uses to hold back notifications.
+# 2 = a full-screen app (a borderless game too), 3 = a Direct3D exclusive full-screen
+# game, 4 = presentation mode. 5 = normal; 1, 6 and 7 are not about the screen.
+QUNS_FULLSCREEN = (2, 3, 4)
+QUIET_INTERVAL = 300       # s between polls while a game is full screen
+
+
+def fullscreen_app_running() -> bool:
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    state = ctypes.c_int(0)
+    try:
+        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state)) != 0:
+            return False
+    except (AttributeError, OSError):
+        return False
+    return state.value in QUNS_FULLSCREEN
 
 
 # ------------------------------------------------------------ formatting
@@ -442,8 +483,12 @@ class DeviceIcon:
         badge = self.app.pictogram(st) if self.app.cfg["badges"] else ""
         animate = (self.app.cfg["animation"] and st.charging and st.online
                    and st.level is not None)
+        # the number replaces the pictogram; a device that only reports rough steps
+        # (st.approx) keeps its pictogram rather than showing a made-up exact number
+        text = (str(st.level) if self.app.cfg.get("percent_in_icon") and st.level is not None
+                and not st.approx else "")
         state = (st.level, st.charging, st.online, self.app.low_for(st),
-                 self.app.light_taskbar, badge, animate)
+                 self.app.light_taskbar, badge, animate, text)
         if state != self._state:
             self._state = state
             art = self._art(state)
@@ -477,13 +522,13 @@ class DeviceIcon:
         icon switches without rendering anything."""
         if state not in self._images:
             self._images.clear()
-            level, charging, online, low, light, badge, animate = state
+            level, charging, online, low, light, badge, animate, text = state
             for lt in (light, not light):
                 if animate:
-                    art = icons.charging_frames(level, online, low, lt, badge)
+                    art = icons.charging_frames(level, online, low, lt, badge, text=text)
                 else:
-                    art = icons.render(level, charging, online, low, lt, badge)
-                self._images[(level, charging, online, low, lt, badge, animate)] = art
+                    art = icons.render(level, charging, online, low, lt, badge, text=text)
+                self._images[(level, charging, online, low, lt, badge, animate, text)] = art
         return self._images[state]
 
     def tick(self, i: int) -> None:
@@ -514,6 +559,8 @@ class App:
         self.key_provider: Dict[str, str] = {}   # device key -> provider name
         self.history = history.History(HISTORY_PATH)
         self.history.load()
+        self.held: Dict[tuple, tuple] = {}      # (key, title) -> (text, title), held while quiet
+        self.was_quiet = False
         self.bt = BluetoothProvider()
         self.icons: Dict[str, DeviceIcon] = {}
         self.placeholder: Optional[pystray.Icon] = None
@@ -571,6 +618,8 @@ class App:
                     else:
                         self.update = None
                         self.refresh_menus()
+                if key == "status_file" and not self.cfg[key]:
+                    remove_status_file()        # no stale levels left behind for other apps
                 self.wake.set()
             return _f
 
@@ -667,18 +716,24 @@ class App:
                  checked=lambda it: self.cfg.get("full_alert", True)),
             Item("Estimated time left", toggle("time_left"),
                  checked=lambda it: self.cfg.get("time_left", True)),
+            Item("Quiet while gaming", toggle("quiet_fullscreen"),
+                 checked=lambda it: self.cfg.get("quiet_fullscreen", True)),
             Menu.SEPARATOR,
             Item("Windows Bluetooth devices", toggle("bluetooth"),
                  checked=lambda it: self.cfg["bluetooth"]),
             Item("Device types", Menu(provider_items)),
             Item("Device pictogram", toggle("badges"),
                  checked=lambda it: self.cfg["badges"]),
+            Item("Percentage in the icon", toggle("percent_in_icon"),
+                 checked=lambda it: self.cfg.get("percent_in_icon", False)),
             Item("Charging animation", toggle("animation"),
                  checked=lambda it: self.cfg["animation"]),
             Item("Icon colour", Menu(*[
                 Item(t, set_theme(m), checked=lambda it, m=m: self.cfg.get("icon_theme", "auto") == m, radio=True)
                 for m, t in themes])),
             Menu.SEPARATOR,
+            Item("Status file for other apps", toggle("status_file"),
+                 checked=lambda it: self.cfg.get("status_file", False)),
             Item("Start with Windows", toggle_autostart,
                  checked=lambda it: autostart_enabled()),
             Item("Check for updates", toggle("update_check"),
@@ -988,6 +1043,10 @@ class App:
             lines.append("device types turned off: " + ", ".join(sorted(disabled)))
         if not self.cfg.get("playstation_bluetooth", True):
             lines.append("PlayStation controllers over Bluetooth: not read (turned off)")
+        lines.append(f"quiet while gaming: {'on' if self.cfg.get('quiet_fullscreen', True) else 'off'}, "
+                     f"full-screen app in front now: {fullscreen_app_running()}, "
+                     f"{len(self.held)} notification(s) held")
+        lines.append("status file: " + (STATUS_PATH if self.cfg.get("status_file") else "off"))
         lines.append("")
         lines.append("=== Battery history (time left) ===")
         lines += self.history.report()
@@ -1172,7 +1231,8 @@ class App:
             self.alerted[st.key] = True
             try:
                 left = "battery is low" if st.approx else f"{st.level}% left"
-                ic.icon.notify(f"{self.display_name(st)}: {left}. Time to charge.", "Low battery")
+                self.notify(ic.icon, st.key, f"{self.display_name(st)}: {left}. Time to charge.",
+                            "Low battery")
             except Exception as e:
                 log.warning("notify: %s", e)
 
@@ -1189,7 +1249,8 @@ class App:
         prev = self.full_state.get(st.key)
         if st.level >= 100 and prev == "charging" and self.cfg.get("full_alert", True):
             try:
-                ic.icon.notify(f"{self.display_name(st)} is fully charged.", "Fully charged")
+                self.notify(ic.icon, st.key, f"{self.display_name(st)} is fully charged.",
+                            "Fully charged")
             except Exception as e:
                 log.warning("notify: %s", e)
         if st.level >= 100:
@@ -1209,6 +1270,16 @@ class App:
                 self.apply(results)
             except Exception:
                 log.exception("apply")
+            quiet = self.quiet()
+            if quiet != self.was_quiet:
+                self.was_quiet = quiet
+                log.info("full-screen app %s", "in front: quiet" if quiet else "gone")
+            if not quiet and self.held:
+                self.flush_held()
+            try:
+                self.write_status(results)
+            except Exception:
+                log.exception("status file")
             if self.diag_requested.is_set():
                 self.diag_requested.clear()
                 try:
@@ -1260,6 +1331,11 @@ class App:
             interval = min(interval, 3)   # a new controller has no battery info yet: re-check soon
         if any(self.missing.values()):
             interval = min(interval, 3)   # a device just went missing: confirm quickly instead of in a minute
+        quiet = self.quiet()
+        if quiet:
+            # a game is full screen: every poll talks to the devices, so do it rarely.
+            # Plugging something in still polls at once (the signature check below)
+            interval = max(self.cfg["interval"], QUIET_INTERVAL)
         deadline = time.time() + interval
         if sig is None:
             sig = self.change_signature()
@@ -1271,6 +1347,8 @@ class App:
             if now != sig:
                 time.sleep(1.0)          # give Windows time to finish setting up the device
                 return
+            if quiet and not self.quiet():
+                return                   # the game is closed: poll now and show what was held
 
     def anim_loop(self):
         """Advances the "breathing" frames of charging devices; other icons are left alone."""
@@ -1292,14 +1370,74 @@ class App:
             except Exception:
                 pass
 
-    def notify_any(self, text: str, title: str) -> None:
+    def notify_any(self, text: str, title: str, key: str = "") -> None:
         """A tray notification from whichever icon is there."""
         icon = next((ic.icon for ic in list(self.icons.values())), None) or self.placeholder
         if icon is not None:
             try:
-                icon.notify(text, title)
+                self.notify(icon, key, text, title)
             except Exception as e:
                 log.warning("notify: %s", e)
+
+    # ---------------- status file for other apps
+    def status_data(self, results: List[DeviceStatus], running: bool = True) -> dict:
+        """What status.json holds: every device that has an icon, as the tooltip shows
+        it. `running` is false in the file the app leaves behind when it exits."""
+        hidden = self._settings_map("hidden")
+        devices = []
+        for st in results:
+            if st.key in hidden:
+                continue
+            secs = None if st.approx else self.history.seconds_left(st.key, st.level)
+            if st.charging or not st.online:
+                secs = None
+            devices.append({
+                "key": st.key,
+                "name": self.display_name(st),
+                "level": st.level,
+                "charging": st.charging,
+                "online": st.online,
+                "kind": self.pictogram(st),
+                "approx": st.approx or None,
+                "low_alert_at": self.low_for(st),
+                "seconds_left": None if secs is None else int(secs),
+                "text": describe(st, self.display_name(st), self.time_left_text(st)),
+            })
+        now = time.time()
+        return {"app": APP_TITLE, "version": VERSION, "running": running,
+                "updated": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now)),
+                "updated_unix": int(now), "devices": devices}
+
+    def write_status(self, results: List[DeviceStatus]) -> None:
+        if self.cfg.get("status_file"):
+            write_json(STATUS_PATH, self.status_data(results))
+
+    # ---------------- quiet while a game is full screen
+    def quiet(self) -> bool:
+        """True while "Quiet while gaming" is on and a full-screen app is in front."""
+        return bool(self.cfg.get("quiet_fullscreen", True)) and fullscreen_app_running()
+
+    def notify(self, icon, key: str, text: str, title: str) -> None:
+        """Show a notification now, or hold it until the full-screen app is gone. Only
+        the newest one per device and kind is kept, so a long game ends with one
+        "Low battery" per device rather than a pile of them."""
+        if self.quiet():
+            self.held[(key, title)] = (text, title)
+            log.info("held while full screen: %s", text)
+            return
+        icon.notify(text, title)
+
+    def flush_held(self) -> None:
+        """The full-screen app is gone: show what was held, except a low battery alert
+        for a device that has been put on the charger (or topped up) since."""
+        held, self.held = self.held, {}
+        for (key, title), (text, _) in held.items():
+            ic = self.icons.get(key)
+            st = ic.status if ic is not None else None
+            if title == "Low battery" and st is not None and (
+                    st.charging or (st.level is not None and st.level > self.low_for(st))):
+                continue
+            self.notify_any(text, title, key)
 
     def open_update(self) -> None:
         url = self.update[1] if self.update else updates.RELEASES_URL
@@ -1349,6 +1487,11 @@ class App:
     def quit(self):
         self.stop_evt.set()
         self.history.save(force=True)
+        if self.cfg.get("status_file"):
+            try:
+                write_json(STATUS_PATH, self.status_data([], running=False))
+            except OSError as e:
+                log.warning("status file: %s", e)
         self.update_wake.set()
         self.theme_evt.set()
         if self.win_events is not None:

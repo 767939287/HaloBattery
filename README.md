@@ -95,7 +95,9 @@ Right-click a device icon:
 - **Preferences**:
   - **Poll interval** (15 s to 5 min), **Low battery alert at** (off, 10–30%), **Alert when fully charged** (a notification once per charge, on by default)
   - **Estimated time left**: "about 5 h of use left" in the tooltip, from how fast the device has drained since its last charge. Only time the device is awake and on battery counts, and there is no estimate until it has been used for 30 minutes and dropped 3%. The history is kept in `%APPDATA%\HaloBattery\history.json`.
-  - **Windows Bluetooth devices**, **Device pictogram**, **Charging animation**
+  - **Quiet while gaming** (on by default): while a game or other app is full screen (the same signal Windows uses to hold its own notifications), alerts are held and shown once it closes - one per device, and a low battery alert is dropped if the device was put on the charger meanwhile. Devices are polled only every 5 minutes then, since every poll talks to them; plugging something in still updates at once.
+  - **Windows Bluetooth devices**, **Device pictogram**, **Percentage in the icon** (the level as a number in the ring instead of the pictogram, amber or red when low), **Charging animation**
+  - **Status file for other apps** (off by default): writes `%APPDATA%\HaloBattery\status.json` after every poll, for Rainmeter, a Stream Deck plugin or a script. Each device has `name`, `level`, `charging`, `online`, `kind`, `seconds_left` and the tooltip `text`; `running` turns false when the app exits, and `updated_unix` says how fresh it is. Turning it off deletes the file.
   - **Device types**: turn off a brand or device family; its devices are then not opened at all. **PlayStation over Bluetooth** can be turned off on its own: reading the battery over Bluetooth switches the controller into its full report mode, and some games do not see a controller in that mode until it is switched off and on (#96). Over USB it is still read.
   - **Icon colour**: Automatic (the Windows theme, or MyDockFinder's menu bar while it is running), White or Black
   - **Start with Windows** (per-user registry key, no admin rights needed)

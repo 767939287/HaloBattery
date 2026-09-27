@@ -20,6 +20,17 @@ and the project follows [Semantic Versioning](https://semver.org/).
   charge. Time asleep, switched off or with the PC suspended does not count. No estimate
   until 30 minutes of use and a 3% drop; kept in `%APPDATA%\HaloBattery\history.json`
   so it survives a restart. Can be turned off in Preferences.
+- **Percentage in the icon** in Preferences: the level as a number in the ring instead of
+  the pictogram, sized to stay inside the ring ("100" included) and amber or red like the
+  arc when the battery is low. Devices that only report rough steps keep their pictogram.
+- **Quiet while gaming** in Preferences (on by default): while a full-screen app is in
+  front (`SHQueryUserNotificationState`), notifications are held and shown when it
+  closes, one per device and kind, and the poll interval becomes 5 minutes so the app
+  talks to the devices less during a game (#76). A plug-in still polls at once.
+- **Status file for other apps** in Preferences (off by default):
+  `%APPDATA%\HaloBattery\status.json`, rewritten after every poll (atomically), with each
+  device's name, level, charging, online, kind, alert level, seconds of use left and
+  tooltip text, for Rainmeter, Stream Deck or scripts.
 - **Fully charged**: a notification when a charging device reaches 100%, once per charge
   (a 99/100% wobble on the charger does not repeat it). "Alert when fully charged" in
   Preferences turns it off.

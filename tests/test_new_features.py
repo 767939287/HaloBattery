@@ -213,7 +213,7 @@ class DeviceLowTests(HideRenameTestCase):
         ic.app, ic.key, ic._state, ic._images, ic.frames = app, KEY, None, {}, None
         ic.icon = mock.Mock(title="", visible=True)
         with mock.patch.object(hb.icons, "render",
-                               lambda level, ch, on, low, lt, badge: drawn.append(low) or object()):
+                               lambda level, ch, on, low, lt, badge, **kw: drawn.append(low) or object()):
             ic._update(mouse(45))
         self.assertEqual(set(drawn), {50})
 

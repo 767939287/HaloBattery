@@ -92,6 +92,7 @@ def make_app(cfg=None):
     app.update = None
     app.notes = []
     app.key_provider = {}
+    app.held = {}
     app.history = hb.history.History()      # in memory: no path, never written
     return app
 
@@ -107,6 +108,8 @@ class HideRenameTestCase(unittest.TestCase):
             mock.patch.object(hb.pystray, "Icon", FakeTrayIcon),
             mock.patch.object(hb.time, "sleep", lambda s: None),
             mock.patch.object(hb, "save_config", lambda cfg: self.saved.append(dict(cfg))),
+            # never depend on what is full screen on the machine running the tests
+            mock.patch.object(hb, "fullscreen_app_running", lambda: False),
             # stop() runs in a thread in hide(); run it at once so the test can check it
             mock.patch.object(hb.threading, "Thread",
                               lambda target, args=(), daemon=None: types.SimpleNamespace(
@@ -270,8 +273,10 @@ class MenuLayoutTests(HideRenameTestCase):
         prefs = next(i for i in menu.items if i.text == "Preferences").submenu
         texts = [i.text for i in prefs.items if i is not hb.Menu.SEPARATOR]
         self.assertEqual(texts, ["Poll interval", "Low battery alert at", "Alert when fully charged",
-                                 "Estimated time left", "Windows Bluetooth devices", "Device types",
-                                 "Device pictogram", "Charging animation", "Icon colour",
+                                 "Estimated time left", "Quiet while gaming",
+                                 "Windows Bluetooth devices", "Device types",
+                                 "Device pictogram", "Percentage in the icon", "Charging animation",
+                                 "Icon colour", "Status file for other apps",
                                  "Start with Windows", "Check for updates"])
 
 

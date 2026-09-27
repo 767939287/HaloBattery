@@ -7,6 +7,163 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- SteelSeries: older and other Arctis headsets. Not tested on these headsets; the raw
+  replies go to the diagnostics.
+  - On the `b0` exchange (interface 3): Arctis Nova 7P, Nova 3P / 3X Wireless,
+    Arctis 7+ (and the PS5 / Xbox / Destiny editions), Arctis GameBuds.
+  - With their own requests: Arctis 1 Wireless / 7X / 7P (`06 12`), Arctis 7
+    (`06 14` then `06 18`), Arctis Pro Wireless 2019 (`06 18`), Arctis 9 (`00 20`),
+    Arctis Pro Wireless (`41 aa` then `40 aa`).
+  - Model list and layouts from HeadsetControl; the echo checks and the Arctis 7
+    connection query from the Linux driver `hid-steelseries-arctis.c`. A reply that
+    does not answer the request is never read as a level. Only vendor collections get
+    a request. The Arctis Pro GameDAC is left out, because it is a wired headset.
+
+### Fixed
+- Arctis Nova 7: while the headset is off or still switching on, the dongle repeats
+  the last battery level. The app showed that old level as live for a few seconds.
+  The link byte (byte 1: 03 = connected, 02 = not connected) is now checked too.
+  Verified on a real Nova 7 (22A1).
+- SteelSeries: the Nova headsets are read only from their 0xFFC0 collection, not from
+  whatever collection comes first on interface 3.
+- Razer: the model table now has every wireless mouse whose battery OpenRazer reads, with
+  OpenRazer's transaction id: for example the Pro Click V2 Vertical Edition (#58), Pro Click V2,
+  Pro Click (Mini), Naga V2 Pro, Naga V2 HyperSpeed, Viper V3 HyperSpeed, Viper Mini SE,
+  DeathAdder V3 HyperSpeed, Basilisk Mobile, Orochi V2, Atheris and the older Mamba / Lancehead
+  mice. Before, a mouse without "wireless" or "HyperSpeed" in its name was skipped.
+  `tests/test_razer.py` checks the table against a copy of OpenRazer's list.
+
+### Fixed
+- Razer: PIDs 008F / 0090 are the Naga Pro, not the Naga V2 Pro (OpenRazer). The Naga V2 Pro
+  (00A7 / 00A8) was missing and was skipped.
+- Razer: the Basilisk X HyperSpeed (0083) is asked with transaction id 0xFF first, as in
+  OpenRazer, not 0x1F.
+- Razer: PID 0078 is the wired Razer Viper, which has no battery. It was in the table as a
+  "Viper Ultimate" and got battery requests. The Viper Ultimate is 007A / 007B.
+- Razer Barracuda Pro (2.4 GHz) support through its receiver (1532:053a), which does not
+  answer the standard Razer request: the headset speaks the "PA" protocol, decoded from a
+  USBPcap capture of Razer Synapse on a real unit. Battery command 0x21, charging 0x2A, and
+  the `razer` provider hands this PID over instead of reporting "no reply" for it.
+  Confirmed on hardware by @phl23 in
+  [#10](https://github.com/HeyOkay/HaloBattery/issues/10): the level tracks (34% while the
+  capture was taken, 27% when the branch was tested), the charging state follows the
+  charger, and a switched-off headset reports "no link" instead of a stale value.
+### Fixed
+- **SteelSeries Rival 3 Wireless replies are read in either layout.** flozz/rivalcfg sends the same `aa 01` request and reads the reply with the same hidapi call, but takes a 3-byte reply with the level in byte 0 and charging in byte 2, while yurtemre7/steel-mouse reads an `aa` echo with the level in byte 1 and charging in byte 3. Nothing has been on hardware here, so both are accepted now instead of only the echo shape - a reply without the echo used to be skipped, which would have left the mouse showing nothing if rivalcfg is the correct one. The diagnostics print the raw reply and name the shape. The discrepancy was reported by @ahmedkhursheed23 in [#5](https://github.com/HeyOkay/HaloBattery/issues/5).
+- **SteelSeries devices are found by usage page, not by interface number.** The configuration collection is `0xFFC0`, and the Rival 650 exposes it on interface 0 (rivalcfg's profile says endpoint 0, and rivalcfg issue #202 is about needing the usage page to find it dependably). Filtering on interface 3 skipped that mouse entirely. When the page appears more than once the collection on interface 3 wins, so the Nova headsets and the Rival 3 are read exactly as before. Pointed out by @ahmedkhursheed23 in [#5](https://github.com/HeyOkay/HaloBattery/issues/5).
+- **Keyboards were drawn with a mouse pictogram.** Both providers report
+  `kind="keyboard"` for the keyboards they support (Logitech HID++ over a receiver, and
+  anything Bluetooth whose class says keyboard), but the badge list did not know the
+  kind: a Logitech keyboard fell through to the mouse badge, and a Bluetooth one to the
+  Bluetooth badge. There is a keyboard pictogram now, wide and low enough to read
+  against the mouse at 16 px.
+- **A short device name could hide an unrelated Bluetooth device.** The duplicate check
+  accepted a match whenever the Bluetooth name was at least six characters and contained
+  the HID name (or vice versa), without looking at the second name's length, so an HID
+  device named "Razer" dropped a Bluetooth "Razer Barracuda Pro" and an HID "G Pro"
+  dropped a "Logitech G Pro X Wireless". Both names now have to be at least six
+  characters for a substring match; identical names still match as before.
+- A wired Xbox-compatible controller could show **5%** while on the cable: `BatteryLevel`
+  is documented as valid only for wireless devices, and a wired pad's byte is whatever the
+  driver left in the field, so it is no longer read as a level (the last wireless reading
+  is still kept, and a pad with none says full).
+- With two Xbox-compatible controllers, one could take the *other* controller's level and
+  name: `RawGameControllers` was indexed by slot number, but it is not the XInput slot list
+  - it also holds controllers XInput cannot see (a DualSense, a wheel) whose order is not
+  the slot order. Only the vendors this provider reads are considered now, and the reports
+  are paired with the slots only when the two counts agree; otherwise the coarse XInput
+  level is used instead of another controller's report.
+- A controller connected over Bluetooth could appear twice - its XInput icon plus the
+  Windows Bluetooth one - whenever Windows.Gaming.Input returned no report. The transport
+  is now also derived from the HID device paths, which cannot mistake a 2.4 GHz receiver
+  for a Bluetooth link because such a receiver also exposes a non-Bluetooth interface. A
+  game controller of these vendors on a Bluetooth path counts on its own, so another device
+  of the same vendor on USB - a Microsoft mouse or keyboard - no longer switches that
+  detection off for Xbox pads.
+- Windows.Gaming.Input is now asked only for controllers Windows can hand out as a
+  **Gamepad**. `RawGameControllers` lists wheels, flight sticks and other controllers XInput
+  cannot see as well, and they were being matched against the XInput slots they do not have.
+- A controller that Windows.Gaming.Input cannot place on Bluetooth, because its device path
+  carries no Bluetooth service guid, still showed a second icon: "Xbox controller: 10%" (the
+  unusable remain=100 against full=1000) next to the correct "Xbox Wireless Controller: 77%"
+  from Windows' own Bluetooth battery. A Bluetooth gamepad of the same device family now
+  counts as the same device, compared exactly so the "Xbox controller 1"/"Xbox controller 2"
+  names of two controllers cannot collapse into one icon. Reported by a reader on Reddit.
+- **The MCHOSE G7 request goes only to the G7.** `0xA8A5` is a chip maker's vendor id
+  ("YJX-CHIP") rather than a model, so other devices can sit behind it - and the G7's output
+  report was written to the `0xFF01` collection of any of them. `G7_PID` was defined but never
+  checked. Devices on that vendor id that are not the G7 are now left alone completely.
+- **The Audeze sequence goes only to known Maxwells, and only to a vendor collection.** The 14
+  packets were written to any device with vendor `0x3329` (`KNOWN` was only used to pick the
+  display name), and on a device that has no `0xFF13` collection they went to *every* collection
+  it exposes, including the consumer-control and telephony pages that answer nothing at all.
+  Only the product ids in `KNOWN` are talked to now, and the sequence only ever goes to a vendor
+  collection; a known Maxwell without one gets an icon and nothing is written to it.
+- **The Audeze docstring no longer claims the sequence writes nothing.** It said the byte that
+  marks a write (`0x00` or `0x82`) never appears in the sequence, but the seventh packet -
+  `06 07 00 05 5A 03 00 07 1C` - has `0x00` there. That packet is HeadsetControl's own, byte for
+  byte (`lib/devices/audeze_maxwell.hpp`, `UNIQUE_REQUESTS`), so either that byte is not a
+  read/write marker or that packet is not a plain read: the claim was asserted rather than
+  measured and is withdrawn. Reported by @ahmedkhursheed23 in
+- **Two Logitech receivers of the same kind** (any two Unifying receivers share
+  `0xC52B`, and Lightspeed receivers share ids too) were merged into one group, so the
+  second receiver's interface paths overwrote the first one's and the devices paired to
+  the first receiver were never read. Receivers are now grouped by product id *and*
+  device instance, which the HID path carries; two receivers of the same kind say which
+  one they are in the diagnostics, and their devices get keys of their own. A single
+  receiver keeps the plain keys, so existing icons do not move.
+- **The receiver instance key stops short of the collection number.** One interface numbers
+  its collections in the last part of that path segment (`Col01` ends in `&0000`, `Col02` in
+  `&0001`), so keeping the whole segment split a single receiver into two groups: the group
+  holding only the long-report collection was polled without the short-report one, the empty
+  slots' error reports could therefore never be read, every slot burnt its full timeout and
+  was then pinged with the short one ever after - about 11 s for the first poll and 3.3 s for
+  each one after, on a receiver with a single paired mouse, with slots 2-6 wrongly reported
+  as "no answer (asleep or off)". Reported by @ahmedkhursheed23 with hardware measurements,
+  and reproduced here on a `046D:C539` receiver: 11.08 s -> 1.06 s and 3.33 s -> 0.34 s.
+  The rest of the segment comes from the interface, so two receivers still differ.
+- **The module compiles without an invalid-escape warning.** The `_instance` docstring shows
+  a Windows device path and was not a raw string, so Python 3.12 warned about `\H`.
+- The PlayStation provider waited out its full 1.5 s window on *every* collection a
+  controller exposes, so a DualShock 4 or DualSense that answered on none of its audio,
+  touch or sensor collections held the poll loop for up to 6 s and delayed every other
+  device's update behind it (measured: 6.0 s with four silent collections, 4.5 s when
+  the gamepad collection was listed third). The gamepad collection - the one that
+  carries the battery - is now tried first, and one controller may cost the poll at most
+  2.5 s in total, after which the remaining collections are skipped and the diagnostics
+  say so.
+- A controller that is connected but whose battery can never be read - another app such as
+  DS4Windows or HidHide holding the device, so every attempt to open it fails - kept the app's
+  fast re-check running indefinitely: that path shortens the poll interval for *every* provider
+  to 3 s, not just this one, so it never got cheaper. The fast path is now given up 120 s after
+  a reading first goes missing, with the reason in the diagnostics; the icon stays, the poll
+  cost does not.
+- **A DualShock 4 wireless adapter with no controller on it no longer shows a 0% icon.** The
+  adapter (`054C:0BA0`) streams report `01` whether or not a controller is paired with it, and
+  fills the battery field with zeros in that case - which was read as a real 0% reading, and at
+  0% the app also raises its low-battery alert, for a controller that is not there. Bit 2 of
+  `status[1]` is the adapter's "no controller connected" flag: the Linux driver calls it
+  `DS4_STATUS1_DONGLE_STATE` and treats it as not connected (`hid-playstation.c`; `hid-sony.c`
+  has no DualShock 4 or dongle code any more). The adapter is now left without a reading when
+  that bit is set, and the diagnostics say so. Reported by @ahmedkhursheed23 in
+  [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
+- **Hide a device** (#23): "Hide this device" in the menu of a device icon removes the
+  icon and stops the low battery alert for that device, for example a controller that
+  always reports 100%. "Hidden devices" lists them; a click shows one again.
+- **Rename a device**: "Rename…" opens a Windows input box. The name is used in the
+  tooltip, the menu header and the low battery alert; "Reset name" goes back to the
+  device's own name. The pictogram does not change.
+
+### Changed
+- The settings are in a **Preferences** submenu: poll interval, low battery alert,
+  Bluetooth, pictogram, charging animation, icon colour, start with Windows and the
+  update check. The main menu keeps the items used often.
+
+### Fixed
+- The menu header of a device said "No devices found" instead of the device and its
+  level. pystray builds the Windows menu once, before the first reading; the menu is
+  now rebuilt when the device's text changes.
+- HyperX Cloud III Wireless (`03F0:05B7`) over HID: battery and charging from the dongle's `0xFF13` vendor collection, next to the Cloud II support and alongside NGENUITY. **Unverified on hardware** - the packets, the reply ids and the level byte come from LennardKittner/HyperHeadset's implementation for this product id, which also documents the Windows-only fallback where a dongle accepts the packet only as a feature report; that fallback is implemented and the diagnostics say which path was taken. A level above 100 and the reference's all-zero state are both refused rather than shown as a reading
 - Nintendo Switch Pro Controller and Joy-Con over Bluetooth (#63). Windows does not report
   their battery, so the app reads the battery byte from the controller's own input report,
   as SDL does: five levels (full, medium, low, critical, empty) and the charging bit. The
@@ -27,6 +184,29 @@ and the project follows [Semantic Versioning](https://semver.org/).
   Bluetooth at once keeps one icon. Thanks to @dendr203 (#7).
 - HyperX Cloud II Wireless over HID (`03F0:0696`, `03F0:018B`): battery and charging, using the exchange HeadsetControl documents for these product ids. **Unverified** - no Cloud II Wireless was on hand, so a reply that does not echo the command is ignored and a level above 100 refused rather than shown
 - SteelSeries Rival 3 Wireless (`1038:1830`) over HID: battery and charging on the mouse exchange, next to the existing Nova headsets and alongside SteelSeries GG. **Unverified** - the reply layout is the open question in [#5](https://github.com/HeyOkay/HaloBattery/issues/5), so a reply without the command echo is skipped and a level above 100 refused rather than shown
+- JBL Quantum 910 Wireless support through its dongle: the headset pushes report 0x08
+  with the level in byte 1, the pattern plugato/JBL_Baterry_Monitor confirmed on this
+  USB id (0ECB:2088, one vendor collection `ff13:0001`, interface 5 on a real unit). There is no request to send, and the headset can
+  stay quiet for long stretches, so the last level heard is kept and shown greyed out.
+  Confirmed on a real unit: the provider finds the receiver, matches its collection and shows the level,
+  and a capture from that unit reads `08 5f 03 ...` - report 0x08 with byte 1 = `0x5f` = 95%, at the
+  moment JBL's own app showed 95%. The report is an event: it arrives when the headset is plugged into
+  its charger, and pressing buttons or the volume rocker does not produce it, so the listen window is ten
+  seconds and the last level heard is kept. The receiver also pushes a power report 0x09 (byte 1 is 0x00
+  when the headset is off and 0x01 when it is on, confirmed on a real unit) and a 0x02 frame; none of them
+  is a level, and a headset last seen switched off explains itself in the diagnostics. The report has no charging flag, so none is shown.
+- Keychron support over the Ultra-Link 8K receiver (3434:D028) and the cable (3434:D048,
+  the M5), without Keychron's own software: the vendor protocol - a 64-byte feature
+  report `b3 06` answered by a 64-byte input report `b4 06` whose byte 20 is the level -
+  as implemented by csutcliff/keychron-battery-dkms for these two ids.
+  **Unverified** here: no Keychron device was on hand, so a level above 100 is refused
+  rather than shown. Charging is not reported - the reply carries no such flag.
+- Pulsar, ATK and VXE wireless mice (Pulsar X2 V2 Mini, ATK VXE R1 SE+) over their dongle
+  or cable, without vendor software: 17-byte frames carrying a checksum, command 0x04 for
+  the power details, level in byte 6 and the on-cable flag in byte 7. Protocol from
+  andrewrabert/python-pulsar-mouse-tool, which also backs the "HID: pulsar" driver in
+  review for Linux. **Unverified** here: no such mouse was on hand, so a frame whose
+  checksum does not match is refused rather than shown.
 - Logitech support over HID++ 2.0, without G HUB (and alongside it). Every device
   paired to a Lightspeed or Unifying receiver gets its own icon, named as the device
   reports itself; the level comes from the unified battery, battery status or battery
@@ -112,6 +292,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
   other collection; the diagnostics list what the dongle offers instead.
 
 ### Fixed
+- `--probe` now always lists every HID device it can see. The list was only printed when
+  the poll found nothing at all, so on a machine whose other devices answered, a device
+  that no provider sees - the case the list exists for - never appeared (found while
+  answering #21).
 - Razer mice that answer a battery request with somebody else's packet first are no
   longer written off as "off or asleep". Razer Synapse polls LED state on the same
   collection and its replies carry the same status byte as the battery reply, so the

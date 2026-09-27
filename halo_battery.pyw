@@ -5,7 +5,7 @@ Supported:
   * Audeze Maxwell (2.4 GHz dongle or USB-C cable)
   * WLmouse (Beast X / Beast X Max / Mini Pro)
   * Logitech (HID++ 2.0 mice and keyboards: Lightspeed / Unifying receivers, G HUB not needed)
-  * SteelSeries (Arctis Nova 7 and Nova 5 headsets, GG not needed)
+  * SteelSeries (Arctis Nova, Arctis 1 / 7 / 9 / Pro Wireless / 7+ headsets, GameBuds, GG not needed)
   * MCHOSE (M7 Ultra and the rest of the 0x5253 family, on the 2.4 GHz receiver)
   * Xbox-compatible controllers (Windows.Gaming.Input / XInput)
   * PlayStation controllers (DualShock 4, DualSense): directly over USB/HID
@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -27,7 +28,7 @@ from typing import Dict, List, Optional, Set
 
 APP_NAME = "HaloBattery"
 APP_TITLE = "Halo Battery"
-VERSION = "1.10.1"
+VERSION = "1.11.0"
 LEGACY_NAME = "BatteryTray"      # the app's previous name (settings and autostart are migrated)
 
 if getattr(sys, "frozen", False):
@@ -57,11 +58,13 @@ import pystray  # noqa: E402
 from pystray import Menu, MenuItem as Item  # noqa: E402
 
 import icons  # noqa: E402
+import updates  # noqa: E402
 import winevents  # noqa: E402
 from providers import hidlist  # noqa: E402
-from providers import (AudezeProvider, BluetoothProvider, DeviceStatus, PulsarProvider, HyperXProvider,  # noqa: E402
-                       LogitechProvider, MchoseProvider, PlayStationProvider, RazerProvider,
-                       SteelSeriesProvider, WLmouseProvider, XInputProvider)
+from providers import (AudezeProvider, BarracudaProvider, BluetoothProvider,  # noqa: E402
+                       DeviceStatus, HyperXProvider, JblProvider, KeychronProvider,
+                       LogitechProvider, MchoseProvider, PlayStationProvider, PulsarProvider,
+                       RazerProvider, SteelSeriesProvider, WLmouseProvider, XInputProvider)
 from providers.bluetooth import BluetoothWatcher  # noqa: E402
 
 HEADSET_WORDS = ("blackshark", "kraken", "barracuda", "nari", "thresher", "headset",
@@ -78,6 +81,7 @@ DEFAULTS = {
     # MyDockFinder is running; "white" / "black" are fixed (tray menu > Icon colour);
     # "windows" / "topbar" force one automatic source (config file only)
     "icon_theme": "auto",
+    "update_check": True,   # once a day: is there a newer release on GitHub?
 }
 
 
@@ -205,7 +209,7 @@ def single_instance() -> bool:
 
 # ------------------------------------------------------------ formatting
 def badge_for(st: DeviceStatus) -> str:
-    if st.kind in ("headset", "mouse", "gamepad"):     # reported by the device itself
+    if st.kind in ("headset", "mouse", "gamepad", "keyboard"):   # reported by the device itself
         return st.kind
     n = st.name.lower()
     if any(w in n for w in HEADSET_WORDS):
@@ -229,10 +233,27 @@ def dedupe_controllers(results: List[DeviceStatus], bt: List[DeviceStatus]) -> L
     bt_pads = [s for s in bt if s.kind == "gamepad" or any(w in s.name.lower() for w in GAMEPAD_WORDS)]
     if not bt_pads:
         return results
-    out = [s for s in results if not (s.source == "xinput" and s.via == "bluetooth")]
+    families = {f for f in (device_family(s.name) for s in bt_pads) if f}
+    out: List[DeviceStatus] = []
     for s in results:
-        if s not in out:
+        if s.source != "xinput":
+            out.append(s)
+            continue
+        if s.via == "bluetooth":
             log.info("[XInput] %s is connected over Bluetooth and shown as a Bluetooth device", s.name)
+            continue
+        # The provider only knows the transport when the device paths say so, and they do not
+        # always: an Xbox Wireless Controller over Bluetooth can come back without the service
+        # guid in its path, and Windows.Gaming.Input's unusable report for it (remain=100
+        # against full=1000, i.e. 10%) then sat next to the correct Bluetooth value as a second
+        # icon. A Bluetooth gamepad of the same device family is the same device. Compared
+        # exactly, not as a substring, so the "Xbox controller 1"/"Xbox controller 2" names of
+        # two controllers cannot collapse into one icon.
+        fam = device_family(s.name)
+        if fam and fam in families:
+            log.info("[XInput] %s: the Bluetooth reading of the same controller is shown instead", s.name)
+            continue
+        out.append(s)
     return out
 
 
@@ -277,8 +298,13 @@ def drop_bluetooth_duplicates(results: List[DeviceStatus],
     for st in results:
         if st.key.startswith("bt:") or st.source == "bluetooth":
             fam = device_family(st.name)
+            # both sides need a name long enough to be a device rather than a fragment:
+            # a short HID family ("razer", "g pro") used to match inside an unrelated
+            # longer Bluetooth name ("razer barracuda pro", "logitech g pro x") and
+            # drop that device's icon
             duplicate = bool(fam) and any(
-                fam == h or (len(fam) >= 6 and (fam in h or h in fam)) for h in hid)
+                fam == h or (min(len(fam), len(h)) >= 6 and (fam in h or h in fam))
+                for h in hid)
             if duplicate:
                 if st.key not in logged:
                     logged.add(st.key)
@@ -290,7 +316,8 @@ def drop_bluetooth_duplicates(results: List[DeviceStatus],
     return kept
 
 
-def describe(st: DeviceStatus) -> str:
+def describe(st: DeviceStatus, name: Optional[str] = None) -> str:
+    """The tooltip text. `name` replaces the device's own name (set with "Rename...")."""
     if st.approx:
         state = st.approx          # XInput: coarse levels or "not reported yet", never a fake "NN%"
     elif st.level is None:
@@ -301,7 +328,34 @@ def describe(st: DeviceStatus) -> str:
             state += ", charging"
         if not st.online:
             state += " (last known value, device asleep)"
-    return f"{st.name}: {state}"
+    return f"{name or st.name}: {state}"
+
+
+# ------------------------------------------------------------- hide / rename
+def ask_name(current: str) -> Optional[str]:
+    """Show a Windows input box for a new device name.
+    -> the new name, or None when the user cancels or leaves it empty.
+
+    The box comes from PowerShell (Microsoft.VisualBasic InputBox), which is on every
+    Windows. The current name goes to PowerShell in an environment variable, not in
+    the command line, so quotes or other characters in a name do no harm."""
+    if sys.platform != "win32":
+        return None
+    script = ("[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
+              "Add-Type -AssemblyName Microsoft.VisualBasic; "
+              "[Microsoft.VisualBasic.Interaction]::InputBox("
+              "'New name for this device:', 'Halo Battery - Rename', $env:HALO_BATTERY_NAME)")
+    try:
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-Command", script],
+            capture_output=True, timeout=600, creationflags=0x08000000,   # CREATE_NO_WINDOW
+            env=dict(os.environ, HALO_BATTERY_NAME=current))
+    except (OSError, subprocess.SubprocessError) as e:
+        log.warning("rename: %s", e)
+        return None
+    name = res.stdout.decode("utf-8", "replace").strip()
+    return name[:60] or None
 
 
 # ------------------------------------------------------------- application
@@ -340,10 +394,17 @@ class DeviceIcon:
             else:
                 self.frames = None
                 self.icon.icon = art
-        title = describe(st)
+        title = describe(st, self.app.display_name(st))
         # the tray tooltip is limited to 127 characters
         if self.icon.title != title[:127]:
             self.icon.title = title[:127]
+            # pystray builds the Windows menu once and keeps its texts. The menu header
+            # shows the same text as the tooltip, so rebuild the menu when it changes;
+            # otherwise the header keeps "No devices found" from before the first reading
+            try:
+                self.icon.update_menu()
+            except Exception:
+                pass
         if not self.icon.visible:
             try:
                 self.icon.visible = True
@@ -390,8 +451,9 @@ class App:
         self.win_events: Optional[winevents.WindowEventWatcher] = None
         self.light_taskbar = self.compute_light()
         self.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
-                          HyperXProvider(), PulsarProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
-                          PlayStationProvider()]
+                          HyperXProvider(), KeychronProvider(), PulsarProvider(), JblProvider(),
+                          LogitechProvider(), SteelSeriesProvider(), XInputProvider(), PlayStationProvider(),
+                          BarracudaProvider()]
         self.bt = BluetoothProvider()
         self.icons: Dict[str, DeviceIcon] = {}
         self.placeholder: Optional[pystray.Icon] = None
@@ -408,13 +470,16 @@ class App:
         self.bt_fresh = threading.Event()     # fresh result for diagnostics
         self.bt_watch: Optional[BluetoothWatcher] = None
         self.bt_watch_failed = False
+        self.update: Optional[tuple] = None   # (version, release page) when a newer one exists
+        self.update_wake = threading.Event()  # "check for updates now"
 
     # ---------------- menu
     def build_menu(self, owner: Optional[DeviceIcon]) -> Menu:
         def header_text(_item):
             if owner and owner.status:
-                return describe(owner.status)
-            return "No devices found"
+                return describe(owner.status, self.display_name(owner.status))
+            hidden = len(self._settings_map("hidden"))
+            return f"No devices shown ({hidden} hidden)" if hidden else "No devices found"
 
         def set_interval(sec):
             def _f(icon, item):
@@ -437,6 +502,13 @@ class App:
                 if key == "bluetooth":
                     self.bt_cache = []
                     self.bt_wake.set()
+                if key == "update_check":
+                    if self.cfg[key]:
+                        self.cfg["update_last"] = 0     # turned back on: check right away
+                        self.update_wake.set()
+                    else:
+                        self.update = None
+                        self.refresh_menus()
                 self.wake.set()
             return _f
 
@@ -459,16 +531,38 @@ class App:
         themes = [("auto", "Automatic"), ("white", "White"), ("black", "Black")]
         lows = [(0, "Off"), (10, "10%"), (15, "15%"), (20, "20%"), (25, "25%"), (30, "30%")]
 
-        return Menu(
-            Item(header_text, None, enabled=False),
-            Menu.SEPARATOR,
-            Item("Refresh now", lambda i, it: self.wake.set(), default=True),
+        def update_text(_item):
+            return f"Download v{self.update[0]}…" if self.update else "Download update…"
+
+        def renamed(_item):
+            return bool(owner and owner.status and owner.status.key in self._settings_map("names"))
+
+        def show_again(key):
+            # pystray accepts only actions with 0-2 parameters, so no "k=key" default here
+            return lambda icon, item: self.unhide(key)
+
+        def hidden_items():
+            # built each time the menu opens, so it always shows the current list
+            hidden = self._settings_map("hidden")
+            for key, name in sorted(hidden.items(), key=lambda kv: str(kv[1]).lower()):
+                yield Item(f"Show {name}", show_again(key))
+
+        # items for the device of this icon only (the "no devices" icon has none)
+        device_items = [
+            Item("Rename…", lambda i, it: self.rename(owner)),
+            Item("Reset name", lambda i, it: self.reset_name(owner), visible=renamed),
+            Item("Hide this device", lambda i, it: self.hide(owner)),
+        ] if owner is not None else []
+
+        # all settings in one submenu, so the main menu keeps only the things used often
+        preferences = Menu(
             Item("Poll interval", Menu(*[
                 Item(t, set_interval(s), checked=lambda it, s=s: self.cfg["interval"] == s, radio=True)
                 for s, t in intervals])),
             Item("Low battery alert at", Menu(*[
                 Item(t, set_low(p), checked=lambda it, p=p: self.cfg["low"] == p, radio=True)
                 for p, t in lows])),
+            Menu.SEPARATOR,
             Item("Windows Bluetooth devices", toggle("bluetooth"),
                  checked=lambda it: self.cfg["bluetooth"]),
             Item("Device pictogram", toggle("badges"),
@@ -478,12 +572,103 @@ class App:
             Item("Icon colour", Menu(*[
                 Item(t, set_theme(m), checked=lambda it, m=m: self.cfg.get("icon_theme", "auto") == m, radio=True)
                 for m, t in themes])),
+            Menu.SEPARATOR,
             Item("Start with Windows", toggle_autostart,
                  checked=lambda it: autostart_enabled()),
+            Item("Check for updates", toggle("update_check"),
+                 checked=lambda it: self.cfg.get("update_check", True)),
+        )
+
+        return Menu(
+            Item(header_text, None, enabled=False),
+            Item(update_text, lambda i, it: self.open_update(),
+                 visible=lambda it: self.update is not None),
+            *device_items,
+            Menu.SEPARATOR,
+            Item("Refresh now", lambda i, it: self.wake.set(), default=True),
+            Item("Preferences", preferences),
+            Item("Hidden devices", Menu(hidden_items),
+                 visible=lambda it: bool(self._settings_map("hidden"))),
             Menu.SEPARATOR,
             Item("Diagnostics…", lambda i, it: self.request_diag()),
             Item(f"Exit (v{VERSION})", lambda i, it: self.quit()),
         )
+
+    # ---------------- hide / rename
+    def _settings_map(self, key: str) -> Dict[str, str]:
+        """cfg["hidden"] or cfg["names"]: device key -> name. A value that is not a
+        dict (a hand-edited or damaged settings file) is replaced by an empty one."""
+        value = self.cfg.get(key)
+        if not isinstance(value, dict):
+            value = self.cfg[key] = {}
+        return value
+
+    def display_name(self, st: DeviceStatus) -> str:
+        """The name the user gave the device, or the device's own name."""
+        name = self._settings_map("names").get(st.key)
+        return name if isinstance(name, str) and name else st.name
+
+    def hide(self, owner: Optional[DeviceIcon]) -> None:
+        """Remove the icon and remember the device, so it does not come back."""
+        if owner is None or owner.status is None:
+            return
+        st = owner.status
+        with self.lock:
+            self._settings_map("hidden")[st.key] = self.display_name(st)
+            save_config(self.cfg)
+            ic = self.icons.pop(st.key, None)
+            self.missing.pop(st.key, None)
+            self.alerted.pop(st.key, None)
+        log.info("hidden: %s [%s]", self.display_name(st), st.key)
+        if ic is not None:
+            # stop the icon from another thread: this runs in the icon's own menu callback
+            threading.Thread(target=ic.stop, daemon=True).start()
+        self.refresh_menus()
+        self.wake.set()           # the next poll shows the "no devices" icon if none is left
+
+    def unhide(self, key: str) -> None:
+        with self.lock:
+            name = self._settings_map("hidden").pop(key, None)
+            save_config(self.cfg)
+        log.info("shown again: %s [%s]", name, key)
+        self.refresh_menus()
+        self.wake.set()           # the next poll gives the device its icon again
+
+    def rename(self, owner: Optional[DeviceIcon]) -> None:
+        if owner is None or owner.status is None:
+            return
+        # the input box waits for the user: do not block the tray menu while it is open
+        threading.Thread(target=self._rename, args=(owner,), daemon=True).start()
+
+    def _rename(self, owner: DeviceIcon) -> None:
+        st = owner.status
+        if st is None:
+            return
+        new = ask_name(self.display_name(st))
+        if new is None or new == self.display_name(st):
+            return
+        with self.lock:
+            names = self._settings_map("names")
+            if new == st.name:
+                names.pop(st.key, None)       # back to the device's own name
+            else:
+                names[st.key] = new
+            hidden = self._settings_map("hidden")
+            if st.key in hidden:
+                hidden[st.key] = new
+            save_config(self.cfg)
+        log.info("renamed [%s] to %r", st.key, new)
+        owner.update(owner.status or st)      # new tooltip at once
+        self.refresh_menus()
+
+    def reset_name(self, owner: Optional[DeviceIcon]) -> None:
+        if owner is None or owner.status is None:
+            return
+        with self.lock:
+            self._settings_map("names").pop(owner.status.key, None)
+            save_config(self.cfg)
+        owner.update(owner.status)
+        self.refresh_menus()
 
     # ---------------- icon colour
     def compute_light(self) -> bool:
@@ -587,6 +772,9 @@ class App:
                  f"Python {sys.version.split()[0]}  {sys.platform}", ""]
         lines.append("=== Poll result ===")
         lines += [describe(s) + f"   [{s.key}]" for s in results] or ["(nothing)"]
+        hidden, names = self._settings_map("hidden"), self._settings_map("names")
+        lines += [f"hidden by the user: {n}   [{k}]" for k, n in hidden.items()]
+        lines += [f"renamed by the user: {n}   [{k}]" for k, n in names.items()]
         lines.append("")
         lines.append("=== Icon colour ===")
         lines.append(f"mode: {self.cfg.get('icon_theme', 'auto')}, icons drawn for a "
@@ -683,7 +871,10 @@ class App:
 
     def apply(self, results: List[DeviceStatus]):
         seen = set()
+        hidden = self._settings_map("hidden")
         for st in results:
+            if st.key in hidden:
+                continue          # hidden by the user: no icon and no low battery alert
             seen.add(st.key)
             self.missing.pop(st.key, None)
             ic = self.icons.get(st.key)
@@ -731,7 +922,7 @@ class App:
             self.alerted[st.key] = True
             try:
                 left = "battery is low" if st.approx else f"{st.level}% left"
-                ic.icon.notify(f"{st.name}: {left}. Time to charge.", "Low battery")
+                ic.icon.notify(f"{self.display_name(st)}: {left}. Time to charge.", "Low battery")
             except Exception as e:
                 log.warning("notify: %s", e)
 
@@ -814,8 +1005,75 @@ class App:
             for ic in list(self.icons.values()):
                 ic.tick(self.anim_tick)
 
+    # ---------------- update check
+    def refresh_menus(self) -> None:
+        """Rebuild the tray menus, so an item that appeared or went away shows up."""
+        targets = [ic.icon for ic in list(self.icons.values())]
+        if self.placeholder is not None:
+            targets.append(self.placeholder)
+        for icon in targets:
+            try:
+                icon.update_menu()
+            except Exception:
+                pass
+
+    def notify_any(self, text: str, title: str) -> None:
+        """A tray notification from whichever icon is there."""
+        icon = next((ic.icon for ic in list(self.icons.values())), None) or self.placeholder
+        if icon is not None:
+            try:
+                icon.notify(text, title)
+            except Exception as e:
+                log.warning("notify: %s", e)
+
+    def open_update(self) -> None:
+        url = self.update[1] if self.update else updates.RELEASES_URL
+        try:
+            import webbrowser
+            webbrowser.open(url)
+        except Exception as e:
+            log.warning("open %s: %s", url, e)
+
+    def update_loop(self):
+        """Once a day ask GitHub for the latest release; nothing is downloaded or
+        installed, the menu only offers the release page."""
+        # what the last check found is shown right away, without waiting for the network
+        seen = self.cfg.get("update_latest", "")
+        if self.cfg.get("update_check", True) and updates.is_newer(seen, VERSION):
+            self.update = (seen, self.cfg.get("update_url") or updates.RELEASES_URL)
+        if self.stop_evt.wait(30):               # let the icons come up first
+            return
+        while not self.stop_evt.is_set():
+            last = float(self.cfg.get("update_last", 0) or 0)
+            if self.cfg.get("update_check", True) and time.time() - last >= updates.CHECK_EVERY:
+                self.check_update()
+            self.update_wake.wait(3600)
+            self.update_wake.clear()
+
+    def check_update(self) -> None:
+        try:
+            latest, url = updates.fetch_latest(VERSION)
+        except Exception as e:
+            log.info("update check failed: %s", e)   # offline, rate limit: try again later
+            self.cfg["update_last"] = time.time() - updates.CHECK_EVERY + 3 * 3600
+            save_config(self.cfg)
+            return
+        self.cfg.update(update_last=time.time(), update_latest=latest, update_url=url)
+        if updates.is_newer(latest, VERSION):
+            log.info("update available: v%s (running v%s)", latest, VERSION)
+            self.update = (latest, url)
+            self.refresh_menus()
+            if self.cfg.get("update_notified") != latest:
+                self.cfg["update_notified"] = latest
+                self.notify_any(f"Version {latest} is available. Right-click a battery icon "
+                                f"and choose \"Download v{latest}…\".", f"{APP_TITLE} update")
+        else:
+            self.update = None
+        save_config(self.cfg)
+
     def quit(self):
         self.stop_evt.set()
+        self.update_wake.set()
         self.theme_evt.set()
         if self.win_events is not None:
             self.win_events.stop()
@@ -835,6 +1093,7 @@ class App:
         threading.Thread(target=self.theme_loop, daemon=True).start()
         threading.Thread(target=self.anim_loop, daemon=True).start()
         threading.Thread(target=self.bt_loop, daemon=True).start()
+        threading.Thread(target=self.update_loop, daemon=True).start()
         try:
             while not self.stop_evt.is_set():
                 self.stop_evt.wait(1)
@@ -870,9 +1129,9 @@ def probe():
             pass
     app = App.__new__(App)
     app.cfg = load_config()
-    app.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
-                     HyperXProvider(), PulsarProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
-                     PlayStationProvider()]
+    app.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(), HyperXProvider(),
+                     KeychronProvider(), PulsarProvider(), JblProvider(), LogitechProvider(),
+                     SteelSeriesProvider(), XInputProvider(), PlayStationProvider(), BarracudaProvider()]
     app.bt = BluetoothProvider()
     res = []
     for p in app.providers + [app.bt]:
@@ -882,8 +1141,11 @@ def probe():
     for s in res:
         print(describe(s))
     if not res:
-        print("Nothing found. All HID devices:")
-        print("\n".join(dump_hid()))
+        print("Nothing found.")
+    # always list every HID device: the case worth dumping is a device that did
+    # not answer while others did, and that never reaches the branch above
+    print("\nAll HID devices:")
+    print("\n".join(dump_hid()))
 
 
 def main():

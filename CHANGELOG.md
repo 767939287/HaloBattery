@@ -147,6 +147,22 @@ and the project follows [Semantic Versioning](https://semver.org/).
   has no DualShock 4 or dongle code any more). The adapter is now left without a reading when
   that bit is set, and the diagnostics say so. Reported by @ahmedkhursheed23 in
   [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
+- **Hide a device** (#23): "Hide this device" in the menu of a device icon removes the
+  icon and stops the low battery alert for that device, for example a controller that
+  always reports 100%. "Hidden devices" lists them; a click shows one again.
+- **Rename a device**: "Rename…" opens a Windows input box. The name is used in the
+  tooltip, the menu header and the low battery alert; "Reset name" goes back to the
+  device's own name. The pictogram does not change.
+
+### Changed
+- The settings are in a **Preferences** submenu: poll interval, low battery alert,
+  Bluetooth, pictogram, charging animation, icon colour, start with Windows and the
+  update check. The main menu keeps the items used often.
+
+### Fixed
+- The menu header of a device said "No devices found" instead of the device and its
+  level. pystray builds the Windows menu once, before the first reading; the menu is
+  now rebuilt when the device's text changes.
 
 ## [1.11.0] - 2026-09-27
 

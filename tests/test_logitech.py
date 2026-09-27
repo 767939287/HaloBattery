@@ -247,7 +247,6 @@ def win_path(instance, col):
             + instance + b"&0&000" + str(col).encode() + b"#{4d1e55b2-f16f-11cf-88cb-001111000030}")
 
 
-@unittest.skipUnless(hasattr(L, "_instance"), "receiver instances are added by PR #48")
 class TwoReceiverTests(LogitechTestCase):
     def receiver_at(self, instance):
         short, long_ = win_path(instance, 0), win_path(instance, 1)
@@ -300,6 +299,14 @@ class HeadsetTests(LogitechTestCase):
 
 # ------------------------------------------------------------------ safety
 class SafetyTests(LogitechTestCase):
+    def test_ff43_is_used_only_for_known_headsets(self):
+        """A device with a long ff43:0202 collection and no ff00 one, that is not in
+        HEADSETS, gets no request: main never wrote there for such a device."""
+        dev = FakeHidpp({L.F_ADC: (6, {0: [0x0F, 0x02, 0x01]})})
+        bus = self.use([entry(0x0B99, 0xFF43, 0x0202, b"hs")], {b"hs": ({0xFF: dev}, None)})
+        self.assertEqual(L.LogitechProvider().poll(), [])
+        self.assertEqual(bus.writes, [])
+
     def test_no_write_to_other_consumer_collections(self):
         bus = self.use([entry(0xC539, 0x000C, 0x0001, b"consumer")], {})
         L.LogitechProvider().poll()

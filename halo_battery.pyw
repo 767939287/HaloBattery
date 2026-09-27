@@ -231,10 +231,27 @@ def dedupe_controllers(results: List[DeviceStatus], bt: List[DeviceStatus]) -> L
     bt_pads = [s for s in bt if s.kind == "gamepad" or any(w in s.name.lower() for w in GAMEPAD_WORDS)]
     if not bt_pads:
         return results
-    out = [s for s in results if not (s.source == "xinput" and s.via == "bluetooth")]
+    families = {f for f in (device_family(s.name) for s in bt_pads) if f}
+    out: List[DeviceStatus] = []
     for s in results:
-        if s not in out:
+        if s.source != "xinput":
+            out.append(s)
+            continue
+        if s.via == "bluetooth":
             log.info("[XInput] %s is connected over Bluetooth and shown as a Bluetooth device", s.name)
+            continue
+        # The provider only knows the transport when the device paths say so, and they do not
+        # always: an Xbox Wireless Controller over Bluetooth can come back without the service
+        # guid in its path, and Windows.Gaming.Input's unusable report for it (remain=100
+        # against full=1000, i.e. 10%) then sat next to the correct Bluetooth value as a second
+        # icon. A Bluetooth gamepad of the same device family is the same device. Compared
+        # exactly, not as a substring, so the "Xbox controller 1"/"Xbox controller 2" names of
+        # two controllers cannot collapse into one icon.
+        fam = device_family(s.name)
+        if fam and fam in families:
+            log.info("[XInput] %s: the Bluetooth reading of the same controller is shown instead", s.name)
+            continue
+        out.append(s)
     return out
 
 
@@ -973,8 +990,11 @@ def probe():
     for s in res:
         print(describe(s))
     if not res:
-        print("Nothing found. All HID devices:")
-        print("\n".join(dump_hid()))
+        print("Nothing found.")
+    # always list every HID device: the case worth dumping is a device that did
+    # not answer while others did, and that never reaches the branch above
+    print("\nAll HID devices:")
+    print("\n".join(dump_hid()))
 
 
 def main():

@@ -106,16 +106,29 @@ class FakeBus:
 
 class PulsarTest(unittest.TestCase):
     def setUp(self):
-        self._hid, self._hidlist = P.hid, P.hidlist
+        self._hid, self._hidlist, self._outlen = P.hid, P.hidlist, P.output_length
         self.bus = self.one_receiver()
         P.hidlist = types.SimpleNamespace(enumerate=self.bus.enumerate)
         P.hid = types.SimpleNamespace(device=self.bus.device_class())
 
     def tearDown(self):
-        P.hid, P.hidlist = self._hid, self._hidlist
+        P.hid, P.hidlist, P.output_length = self._hid, self._hidlist, self._outlen
 
-    def one_receiver(self, vid=0x3554, pid=0xF58A, replies=(), **kw):
+    def one_receiver(self, vid=0x3554, pid=0xF58A, replies=(), lengths=None, **kw):
+        """lengths: {(usage_page, usage): OutputReportByteLength}. Unknown stays None,
+        which is what Windows gives for a collection it will not classify."""
+        lengths = dict(lengths or {})
         self.bus = FakeBus(vid, pid, replies, **kw)
+        bus = self.bus
+
+        def output_length(path):
+            for c in bus.cols:
+                if c.info["path"] == path:
+                    return lengths.get((c.info["usage_page"], c.info["usage"]))
+            return None
+
+        P.output_length = output_length
+        self.lengths = lengths
         P.hidlist = types.SimpleNamespace(enumerate=self.bus.enumerate)
         P.hid = types.SimpleNamespace(device=self.bus.device_class())
         return self.bus
@@ -190,6 +203,7 @@ class PulsarTest(unittest.TestCase):
             for pid in pids:
                 with self.subTest(vid=vid, pid=pid):
                     bus = FakeBus(vid, pid, [reply(33)])
+                    P.output_length = lambda path: None
                     P.hidlist = types.SimpleNamespace(enumerate=bus.enumerate)
                     P.hid = types.SimpleNamespace(device=bus.device_class())
                     found = P.PulsarProvider().poll()
@@ -197,6 +211,61 @@ class PulsarTest(unittest.TestCase):
                     self.assertEqual(33, found[0].level)
                     c = next(c for c in bus.cols if c.sent)
                     self.assertEqual(P.make_request(), c.sent[0])
+
+    def test_the_control_collection_is_used_when_its_output_report_fits(self):
+        bus = self.one_receiver(replies=[reply(64)], lengths={(0xFF02, 0x0002): 17})
+        P.PulsarProvider().poll()
+        self.assertEqual([(0xFF02, 0x0002)], bus.written())
+
+    def test_a_collection_that_cannot_take_the_frame_is_skipped(self):
+        # Windows refuses a 17-byte write to a collection that has no such report:
+        # the keepalive report on FF02 is 64 bytes, so the frame goes to FF04 instead
+        bus = self.one_receiver(replies=[reply(72)], shape=[(1, 0xFF05, 0x0000),
+                                                            (1, 0xFF02, 0x0002),
+                                                            (1, 0xFF04, 0x0002)],
+                                answering=(0xFF04, 0x0002),
+                                lengths={(0xFF05, 0x0000): 0, (0xFF02, 0x0002): 64,
+                                         (0xFF04, 0x0002): 17})
+        provider = P.PulsarProvider()
+        found = provider.poll()
+        self.assertEqual(72, found[0].level)
+        self.assertEqual([(0xFF04, 0x0002)], bus.written())
+        diag = "\n".join(provider.diagnostics())
+        self.assertIn("ff02:0002 output=64 cannot take a 17-byte frame; skipped", diag)
+        self.assertIn("output=17", diag)
+
+    def test_the_request_goes_to_the_first_collection_that_fits_when_there_is_no_control_one(self):
+        bus = self.one_receiver(replies=[reply(48)], shape=[(1, 0xFF05, 0x0000),
+                                                            (1, 0xFF03, 0x0000)],
+                                answering=(0xFF03, 0x0000),
+                                lengths={(0xFF05, 0x0000): 8, (0xFF03, 0x0000): 17})
+        found = P.PulsarProvider().poll()
+        self.assertEqual(48, found[0].level)
+        self.assertEqual([(0xFF03, 0x0000)], bus.written())
+
+    def test_an_unknown_output_length_never_disqualifies_a_collection(self):
+        # on a system where the caps query says nothing, the usage rule still decides
+        self.one_receiver(replies=[reply(64)])
+        P.PulsarProvider().poll()
+        self.assertEqual([(0xFF02, 0x0002)], self.bus.written())
+
+    def test_an_unknown_length_still_qualifies_when_the_control_collection_is_wrong(self):
+        # the control collection says 8 (no 17-byte report); the next one says nothing.
+        # Unknown must not disqualify it, or the frame is written to a collection that
+        # refuses it and the device looks switched off
+        bus = self.one_receiver(replies=[reply(66)],
+                                shape=[(1, 0xFF02, 0x0002), (1, 0xFF05, 0x0000)],
+                                answering=(0xFF05, 0x0000),
+                                lengths={(0xFF02, 0x0002): 8})
+        found = P.PulsarProvider().poll()
+        self.assertEqual(66, found[0].level)
+        self.assertEqual([(0xFF05, 0x0000)], bus.written())
+
+    def test_the_diagnostic_names_the_output_length(self):
+        self.one_receiver(replies=[reply(64)], lengths={(0xFF02, 0x0002): 17})
+        provider = P.PulsarProvider()
+        provider.poll()
+        self.assertIn("ff02:0002 output=17", "\n".join(provider.diagnostics()))
 
     def test_an_interface_1_collection_is_used_when_the_control_one_is_absent(self):
         shape = [(1, 0xFF05, 0x0000), (1, 0x0001, 0x0080)]

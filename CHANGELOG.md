@@ -14,8 +14,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
   collection with usage page `0xFF02` and usage `0x0002` - which is now preferred, because
   the dongle has five other interface-1 collections and the first of them is not the one
   that answers. The level, the charging flag and the millivolts come out at the same
-  offsets. Not read on this dongle yet: a test build still has to be confirmed against the
-  vendor panel. Reported by huyxs2005.
+  offsets. A collection whose output report cannot carry the 17-byte frame is skipped, so a
+  dongle whose control collection only takes a longer report still gets read instead of
+  looking switched off (spotted by ahmedkhursheed23). Not read on this dongle yet: a test
+  build still has to be confirmed against the vendor panel. Reported by huyxs2005.
 - SteelSeries: older and other Arctis headsets. Not tested on these headsets; the raw
   replies go to the diagnostics.
   - On the `b0` exchange (interface 3): Arctis Nova 7P, Nova 3P / 3X Wireless,

@@ -35,11 +35,15 @@ from .base import DeviceStatus, Provider, hexdump, log
 SONY_VID = 0x054C
 
 # pid -> (display name, is_dualsense)
+# The DS4 USB wireless adapter: it streams report 01 whether or not a controller is
+# paired with it, and fills the battery field with zeros in that case.
+ADAPTER_PID = 0x0BA0
+
 KNOWN = {
     0x05C4: ("Sony DualShock 4", False),      # 2013 model
     0x09CC: ("Sony DualShock 4", False),      # 2016 model
     0x05C5: ("Sony DualShock 4", False),
-    0x0BA0: ("Sony DualShock 4", False),      # USB wireless adapter
+    ADAPTER_PID: ("Sony DualShock 4", False),  # USB wireless adapter
     0x0CE6: ("Sony DualSense", True),
     0x0DF2: ("Sony DualSense Edge", True),
 }
@@ -98,8 +102,12 @@ class PlayStationProvider(Provider):
         s = s.lower()
         return "vid&" in s or _BT_HID_GUID in s
 
-    def _read(self, path, is_dualsense: bool) -> Optional[Tuple[int, bool]]:
-        """-> (level, charging) or None if no battery report arrived."""
+    def _read(self, path, is_dualsense: bool,
+              adapter: bool = False) -> Optional[Tuple[int, bool]]:
+        """-> (level, charging) or None if no battery report arrived.
+
+        `adapter` is the DS4 USB wireless adapter, which also reports when no controller
+        is paired with it."""
         dev = hid.device()
         try:
             dev.open_path(path)
@@ -136,6 +144,15 @@ class PlayStationProvider(Provider):
                 # other report; only the expected full report carries the battery
                 if data[0] != rid or len(data) <= off:
                     continue
+                if adapter and len(data) > 31 and data[31] & 0x04:
+                    # No controller is paired with the adapter: its report carries zeros
+                    # in the battery field, which showed up as a 0% icon and, at that
+                    # level, a low-battery alert for a controller that is not there. Bit 2
+                    # of status[1] is DS4_STATUS1_DONGLE_STATE in the Linux driver
+                    # (hid-playstation.c), where it means "not connected".
+                    self._diag.append(f"    the adapter reports no controller attached "
+                                      f"(status[1]={data[31]:#04x}), so this is not a reading")
+                    return None
                 self._diag.append(f"    report {data[0]:#04x} len={len(data)}: {hexdump(data, 64)}")
                 byte = data[off]
                 return parse_dualsense(byte) if is_dualsense else parse_ds4(byte)
@@ -181,7 +198,7 @@ class PlayStationProvider(Provider):
                 self._diag.append(
                     f"  iface={d.get('interface_number')} usage="
                     f"{d.get('usage_page', 0):04x}:{d.get('usage', 0):04x}")
-                res = self._read(d["path"], is_dualsense)
+                res = self._read(d["path"], is_dualsense, adapter=pid == ADAPTER_PID)
                 if res is not None:
                     break
             if res is not None:

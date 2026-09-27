@@ -6,6 +6,17 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-09-28
+
+A big device release: support for many more mice, keyboards and headsets - ASUS, G-Wolves,
+LAMZU, Lofree, Keychron, Pulsar/ATK/VXE, Nintendo Switch controllers, Logitech headsets,
+more SteelSeries Arctis and Aerox models, HyperX Cloud III, Astro A50 Gen 5 and Corsair
+headsets, among others. Devices can now be hidden or renamed, the app can tell you when
+a device is fully charged, and each device can get the pictogram you pick. Tray icons keep
+their place between starts, the extra "No devices found" icon is gone, and settings and
+autostart are more robust. Many of the new devices are marked **Unverified** below: if you
+own one, please tell us whether the level matches.
+
 ### Added
 - **Hide a device** (#23): "Hide this device" in the menu of a device icon removes the
   icon and stops the low battery alert for that device, for example a controller that
@@ -595,7 +606,9 @@ First public release.
   in or unplugged.
 - Settings and the autostart entry are migrated from the app's earlier name, Battery Tray.
 
-[Unreleased]: ../../compare/v1.10.1...HEAD
+[Unreleased]: ../../compare/v1.12.0...HEAD
+[1.12.0]: ../../compare/v1.11.0...v1.12.0
+[1.11.0]: ../../compare/v1.10.1...v1.11.0
 [1.10.1]: ../../compare/v1.10.0...v1.10.1
 [1.10.0]: ../../compare/v1.9.1...v1.10.0
 [1.9.1]: ../../compare/v1.9.0...v1.9.1

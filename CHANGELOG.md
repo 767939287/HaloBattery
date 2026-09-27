@@ -4,6 +4,16 @@ All notable changes to Halo Battery are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Nintendo Switch Pro Controller and Joy-Con over Bluetooth (#63). Windows does not report
+  their battery, so the app reads the battery byte from the controller's own input report,
+  as SDL does: five levels (full, medium, low, critical, empty) and the charging bit. The
+  controller mode is never changed: the app only listens, or sends one read-only subcommand
+  (0x02, request device info). **Unverified** - no Switch controller was on hand.
+  `tests/test_nintendo.py` covers every battery byte, the packet, both modes and the timeouts.
+
 ## [1.11.0] - 2026-09-27
 
 ### Added

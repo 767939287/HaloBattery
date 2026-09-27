@@ -7,6 +7,25 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **Two Logitech receivers of the same kind** (any two Unifying receivers share
+  `0xC52B`, and Lightspeed receivers share ids too) were merged into one group, so the
+  second receiver's interface paths overwrote the first one's and the devices paired to
+  the first receiver were never read. Receivers are now grouped by product id *and*
+  device instance, which the HID path carries; two receivers of the same kind say which
+  one they are in the diagnostics, and their devices get keys of their own. A single
+  receiver keeps the plain keys, so existing icons do not move.
+- **The receiver instance key stops short of the collection number.** One interface numbers
+  its collections in the last part of that path segment (`Col01` ends in `&0000`, `Col02` in
+  `&0001`), so keeping the whole segment split a single receiver into two groups: the group
+  holding only the long-report collection was polled without the short-report one, the empty
+  slots' error reports could therefore never be read, every slot burnt its full timeout and
+  was then pinged with the short one ever after - about 11 s for the first poll and 3.3 s for
+  each one after, on a receiver with a single paired mouse, with slots 2-6 wrongly reported
+  as "no answer (asleep or off)". Reported by @ahmedkhursheed23 with hardware measurements,
+  and reproduced here on a `046D:C539` receiver: 11.08 s -> 1.06 s and 3.33 s -> 0.34 s.
+  The rest of the segment comes from the interface, so two receivers still differ.
+- **The module compiles without an invalid-escape warning.** The `_instance` docstring shows
+  a Windows device path and was not a raw string, so Python 3.12 warned about `\H`.
 - The PlayStation provider waited out its full 1.5 s window on *every* collection a
   controller exposes, so a DualShock 4 or DualSense that answered on none of its audio,
   touch or sensor collections held the poll loop for up to 6 s and delayed every other

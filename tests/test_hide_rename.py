@@ -238,7 +238,7 @@ class MenuLayoutTests(HideRenameTestCase):
         app.apply([dev()])
         texts = [i.text for i in app.build_menu(app.icons["logitech:C15E09CD"]).items
                  if i.visible and i is not hb.Menu.SEPARATOR]
-        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Hide this device",
+        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Icon", "Hide this device",
                                  "Refresh now", "Preferences", "Diagnostics…",
                                  f"Exit (v{hb.VERSION})"])
 
@@ -247,7 +247,7 @@ class MenuLayoutTests(HideRenameTestCase):
         app.apply([dev()])
         texts = [i.text for i in app.build_menu(app.icons["logitech:C15E09CD"]).items
                  if i.visible and i is not hb.Menu.SEPARATOR]
-        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Hide this device",
+        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Icon", "Hide this device",
                                  "Refresh now", "Preferences", "Hidden devices",
                                  "Diagnostics…", f"Exit (v{hb.VERSION})"])
 

@@ -225,6 +225,10 @@ def badge_for(st: DeviceStatus) -> str:
     return "mouse"
 
 
+# the pictograms a user can pick for one device ("Icon" in its menu); "" = automatic
+PICTOGRAM_CHOICES = (("", "Automatic"), ("mouse", "Mouse"), ("keyboard", "Keyboard"),
+                     ("headset", "Headset"), ("gamepad", "Controller"), ("bluetooth", "Bluetooth"))
+
 GAMEPAD_WORDS = ("controller", "gamepad", "joystick", "joy-con")
 
 
@@ -382,7 +386,7 @@ class DeviceIcon:
 
     def _update(self, st: DeviceStatus) -> None:
         self.status = st
-        badge = badge_for(st) if self.app.cfg["badges"] else ""
+        badge = self.app.pictogram(st) if self.app.cfg["badges"] else ""
         animate = (self.app.cfg["animation"] and st.charging and st.online
                    and st.level is not None)
         state = (st.level, st.charging, st.online, self.app.cfg["low"],
@@ -541,6 +545,14 @@ class App:
         def renamed(_item):
             return bool(owner and owner.status and owner.status.key in self._settings_map("names"))
 
+        def picked(value):
+            return lambda _item: bool(owner and owner.status) and (
+                self._settings_map("icons").get(owner.status.key, "") == value)
+
+        def pick(value):
+            # pystray accepts only actions with 0-2 parameters
+            return lambda icon, item: self.set_pictogram(owner, value)
+
         def show_again(key):
             # pystray accepts only actions with 0-2 parameters, so no "k=key" default here
             return lambda icon, item: self.unhide(key)
@@ -555,6 +567,8 @@ class App:
         device_items = [
             Item("Rename…", lambda i, it: self.rename(owner)),
             Item("Reset name", lambda i, it: self.reset_name(owner), visible=renamed),
+            Item("Icon", Menu(*[Item(label, pick(value), checked=picked(value), radio=True)
+                                for value, label in PICTOGRAM_CHOICES])),
             Item("Hide this device", lambda i, it: self.hide(owner)),
         ] if owner is not None else []
 
@@ -602,8 +616,9 @@ class App:
 
     # ---------------- hide / rename
     def _settings_map(self, key: str) -> Dict[str, str]:
-        """cfg["hidden"] or cfg["names"]: device key -> name. A value that is not a
-        dict (a hand-edited or damaged settings file) is replaced by an empty one."""
+        """cfg["hidden"] or cfg["names"] (device key -> name), or cfg["icons"] (device
+        key -> pictogram). A value that is not a dict (a hand-edited or damaged settings
+        file) is replaced by an empty one."""
         value = self.cfg.get(key)
         if not isinstance(value, dict):
             value = self.cfg[key] = {}
@@ -674,6 +689,28 @@ class App:
             self._settings_map("names").pop(owner.status.key, None)
             save_config(self.cfg)
         owner.update(owner.status)
+        self.refresh_menus()
+
+    def pictogram(self, st: DeviceStatus) -> str:
+        """The pictogram the user picked for this device, or the automatic one."""
+        choice = self._settings_map("icons").get(st.key)
+        if isinstance(choice, str) and choice in icons.PICTOS:
+            return choice
+        return badge_for(st)
+
+    def set_pictogram(self, owner: Optional[DeviceIcon], value: str) -> None:
+        """"Icon" in the device menu: "" goes back to the automatic pictogram."""
+        if owner is None or owner.status is None:
+            return
+        with self.lock:
+            chosen = self._settings_map("icons")
+            if value:
+                chosen[owner.status.key] = value
+            else:
+                chosen.pop(owner.status.key, None)
+            save_config(self.cfg)
+        log.info("icon of [%s]: %s", owner.status.key, value or "automatic")
+        owner.update(owner.status)            # redraw at once
         self.refresh_menus()
 
     # ---------------- icon colour
@@ -781,6 +818,8 @@ class App:
         hidden, names = self._settings_map("hidden"), self._settings_map("names")
         lines += [f"hidden by the user: {n}   [{k}]" for k, n in hidden.items()]
         lines += [f"renamed by the user: {n}   [{k}]" for k, n in names.items()]
+        lines += [f"icon picked by the user: {v}   [{k}]"
+                  for k, v in self._settings_map("icons").items()]
         lines.append("")
         lines.append("=== Icon colour ===")
         lines.append(f"mode: {self.cfg.get('icon_theme', 'auto')}, icons drawn for a "

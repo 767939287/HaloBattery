@@ -20,6 +20,21 @@ and the project follows [Semantic Versioning](https://semver.org/).
   its percentage is an estimate from the voltage and can differ from G HUB's.
 - Logitech receivers are also recognised by their product id (Solaar's list), not
   only by "receiver" in the product name.
+- Pulsar/ATK: the VXE R1 Pro Max 1 kHz dongle (`3554:F58A`) reported in #87. The
+  provider never queried it, because the id was not in its table. The ATK/VXE control panel of
+  the OpenMouse project (`@openmouse/protocol`, `drivers/atk`) lists it as the R1 Pro Max receiver and reads
+  the battery with the same command `0x04` frame this provider already speaks, from the
+  collection with usage page `0xFF02` and usage `0x0002` - which is now preferred, because
+  the dongle has five other interface-1 collections and the first of them is not the one
+  that answers. The level, the charging flag and the millivolts come out at the same
+  offsets. A collection whose output report cannot carry the 17-byte frame is skipped, so a
+  dongle whose control collection only takes a longer report still gets read instead of
+  looking switched off (spotted by ahmedkhursheed23). The cable id (`3554:F58C`) is added
+  from the reporter's second report, where the wired mouse lists the same eight collections
+  and the same frame applies. Both transports are now confirmed on the reporter's hardware:
+  the receiver read the mouse's level, and on the cable the level matched ATK's own panel
+  (hub.atk.pro) with the charging flag following the cable in both directions. Reported by
+  huyxs2005.
 - SteelSeries: older and other Arctis headsets. Not tested on these headsets; the raw
   replies go to the diagnostics.
   - On the `b0` exchange (interface 3): Arctis Nova 7P, Nova 3P / 3X Wireless,

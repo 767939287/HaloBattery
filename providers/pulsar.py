@@ -5,8 +5,28 @@ Protocol from andrewrabert/python-pulsar-mouse-tool, which also backs the
 
   * 3554:f508  Pulsar X2 V2 Mini (1 kHz dongle)      3554:f507  the same mouse on the cable
   * 3554:f58f  ATK VXE R1 SE+ (wired)                373b:1085  ATK VXE R1 SE+ (2.4 GHz)
+  * 3554:f58a  VXE R1 Pro Max (1 kHz dongle, #87)    3554:f58c  the same mouse on its cable
   * the Kysona M600 and the VXE Dragonfly R1 Pro use the same protocol (their ids are
     not in the tool, so they are not claimed here).
+
+The cable id (3554:f58c) is claimed too, from the reporter's second report in #87: the
+wired mouse lists the same eight collections as the receiver, and the panel below reads it
+with the same command 0x04 frame. Both transports are confirmed on that reporter's
+hardware - the receiver read the mouse's level, and on the cable the level agreed with
+ATK's own panel (hub.atk.pro) and the charging flag followed the cable.
+
+The ATK and Compx builds are also handled by the OpenMouse project's ATK/VXE panel
+(@openmouse/protocol, drivers/atk): it lists 3554:f58a for the R1 Pro Max receiver
+and 3554:f58c for the same mouse on its cable, and reads the battery with command
+0x04, taking the level, the flag and the millivolts from the same three places this
+file does. It also opens the collection with usage page 0xFF02 and usage 0x0002,
+which is why that one is preferred below.
+
+The same 17-byte framing is in G-Wolves' own web driver (mouse.xyz), which also handles
+these Compx-based receivers: its get_Crc() is 0x55 minus the sum of the first fifteen
+payload bytes, the result goes in byte 15, and the frame is sent with sendReport(8, ...) -
+so the frame on the wire sums to 0x55, the rule this file uses. (Its battery read is for
+the G-Wolves protocol; the level offsets here rest on the two sources above.)
 
 Frames are 17 bytes, big-endian, report id 0x08:
 
@@ -22,6 +42,8 @@ both check out, the command is the one we asked for, and the level is 0..100.
 """
 from __future__ import annotations
 
+import ctypes
+import sys
 import time
 from typing import Dict, List, Optional, Tuple
 
@@ -40,6 +62,67 @@ POWER_INDEX = 7
 VOLTAGE_SLICE = (8, 10)
 
 CONTROL_INTERFACE = 1           # the tool reads its 17-byte replies on interface 1
+CONTROL_USAGE = (0xFF02, 0x0002)   # the collection the OpenMouse ATK/VXE panel opens
+
+
+class _HIDP_CAPS(ctypes.Structure):
+    """The part of HIDP_CAPS this file needs (same shape as providers/gwolves.py)."""
+    _fields_ = [("Usage", ctypes.c_ushort), ("UsagePage", ctypes.c_ushort),
+                ("InputReportByteLength", ctypes.c_ushort),
+                ("OutputReportByteLength", ctypes.c_ushort),
+                ("FeatureReportByteLength", ctypes.c_ushort),
+                ("Reserved", ctypes.c_ushort * 17),
+                ("NumberLinkCollectionNodes", ctypes.c_ushort),
+                ("NumberInputButtonCaps", ctypes.c_ushort),
+                ("NumberInputValueCaps", ctypes.c_ushort),
+                ("NumberInputDataIndices", ctypes.c_ushort),
+                ("NumberOutputButtonCaps", ctypes.c_ushort),
+                ("NumberOutputValueCaps", ctypes.c_ushort),
+                ("NumberOutputDataIndices", ctypes.c_ushort),
+                ("NumberFeatureButtonCaps", ctypes.c_ushort),
+                ("NumberFeatureValueCaps", ctypes.c_ushort),
+                ("NumberFeatureDataIndices", ctypes.c_ushort)]
+
+
+def _query_output_length(path) -> Optional[int]:
+    """OutputReportByteLength of one HID collection, or None when Windows does not
+    say. The handle is opened with no access rights, so nothing is sent to the device."""
+    if sys.platform != "win32":
+        return None
+    try:
+        p = path.decode("utf-8", "ignore") if isinstance(path, (bytes, bytearray)) else str(path)
+        k32, hidd = ctypes.windll.kernel32, ctypes.windll.hid
+        k32.CreateFileW.restype = ctypes.c_void_p
+        handle = k32.CreateFileW(p, 0, 3, None, 3, 0, None)   # no access, share r/w, open existing
+        if handle in (None, ctypes.c_void_p(-1).value):
+            return None
+        try:
+            pp = ctypes.c_void_p()
+            if not hidd.HidD_GetPreparsedData(ctypes.c_void_p(handle), ctypes.byref(pp)):
+                return None
+            try:
+                caps = _HIDP_CAPS()
+                if hidd.HidP_GetCaps(pp, ctypes.byref(caps)) != 0x00110000:   # HIDP_STATUS_SUCCESS
+                    return None
+                return caps.OutputReportByteLength
+            finally:
+                hidd.HidD_FreePreparsedData(pp)
+        finally:
+            k32.CloseHandle(ctypes.c_void_p(handle))
+    except Exception:            # a probe must never take the provider down
+        return None
+
+
+_CAPS: Dict[bytes, Optional[int]] = {}      # collection path -> output report length
+
+
+def output_length(path) -> Optional[int]:
+    """Cached _query_output_length. The paths change when a receiver is re-plugged,
+    so the cache never outlives the collection it describes."""
+    if path not in _CAPS:
+        _CAPS[path] = _query_output_length(path)
+    return _CAPS[path]
+
 
 READ_ATTEMPTS = 4
 READ_TIMEOUT_MS = 250
@@ -51,6 +134,8 @@ PIDS: Dict[int, Dict[int, str]] = {
         0xF508: "Pulsar X2 V2 Mini (wireless)",
         0xF507: "Pulsar X2 V2 Mini (wired)",
         0xF58F: "ATK VXE R1 SE+ (wired)",
+        0xF58A: "VXE R1 Pro Max (2.4 GHz)",
+        0xF58C: "VXE R1 Pro Max (wired)",
     },
     0x373B: {
         0x1085: "ATK VXE R1 SE+ (2.4 GHz)",
@@ -96,9 +181,38 @@ class PulsarProvider(Provider):
         self._diag: List[str] = []
 
     def _pick(self, infos: List[dict]) -> Optional[dict]:
-        for d in infos:
-            if d.get("interface_number") == CONTROL_INTERFACE:
+        """The collection to open.
+
+        The ATK/VXE panel of the OpenMouse project opens the collection with usage
+        page 0xFF02 and usage 0x0002 and sends its report-0x08 frames there, so that
+        one is tried first - the R1 Pro Max dongle has it next to four other
+        interface-1 collections, and the first of those is not the one it answers on.
+        Without it, the first interface-1 collection is used, which is where the
+        reference tool reads its replies.
+
+        A collection whose output report cannot carry the 17-byte frame is skipped
+        even when it has the right usage: Windows refuses that write and no reply
+        comes, which is indistinguishable from a device that is off. The length is
+        only known when Windows says so, and an unknown length never disqualifies a
+        collection. The probe is the same read-only HidP_GetCaps query that
+        providers/gwolves.py uses for its feature length, cached per collection path.
+        (Spotted by ahmedkhursheed23 in #87, from mouse.xyz's writeFile().)
+        """
+        control = [d for d in infos
+                   if (d.get("usage_page"), d.get("usage")) == CONTROL_USAGE]
+        for d in control + infos:
+            if output_length(d["path"]) in (None, PAYLOAD_LEN):
+                if not control:
+                    self._diag.append("  no control collection; using "
+                                      f"iface={d.get('interface_number')} "
+                                      f"{d.get('usage_page', 0):04x}:{d.get('usage', 0):04x} "
+                                      f"(output={output_length(d['path'])})")
                 return d
+            self._diag.append(f"  {d.get('usage_page', 0):04x}:{d.get('usage', 0):04x} "
+                              f"output={output_length(d['path'])} cannot take a "
+                              f"{PAYLOAD_LEN}-byte frame; skipped")
+        if control:
+            return control[0]
         self._diag.append(f"  no interface {CONTROL_INTERFACE} collection; "
                           f"falling back to the first of {len(infos)}")
         return infos[0] if infos else None
@@ -156,7 +270,8 @@ class PulsarProvider(Provider):
                 name = pids[pid]
                 self._diag.append(f"[Pulsar] pid={vid:04x}:{pid:04x} '{name}' "
                                   f"iface={d.get('interface_number')} "
-                                  f"{d.get('usage_page', 0):04x}:{d.get('usage', 0):04x}")
+                                  f"{d.get('usage_page', 0):04x}:{d.get('usage', 0):04x}"
+                                  f" output={output_length(d['path'])}")
                 reply = self._query(d["path"])
                 parsed = parse_power(reply)
                 if parsed is None:

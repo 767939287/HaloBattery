@@ -14,3 +14,4 @@ from .pulsar import PulsarProvider  # noqa: F401
 from .hyperx import HyperXProvider  # noqa: F401
 from .hyperx_cloud3 import HyperXCloud3Provider  # noqa: F401
 from .playstation import PlayStationProvider  # noqa: F401
+from .nintendo import NintendoProvider  # noqa: F401

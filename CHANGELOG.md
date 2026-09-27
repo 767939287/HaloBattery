@@ -164,6 +164,12 @@ and the project follows [Semantic Versioning](https://semver.org/).
   level. pystray builds the Windows menu once, before the first reading; the menu is
   now rebuilt when the device's text changes.
 - HyperX Cloud III Wireless (`03F0:05B7`) over HID: battery and charging from the dongle's `0xFF13` vendor collection, next to the Cloud II support and alongside NGENUITY. **Unverified on hardware** - the packets, the reply ids and the level byte come from LennardKittner/HyperHeadset's implementation for this product id, which also documents the Windows-only fallback where a dongle accepts the packet only as a feature report; that fallback is implemented and the diagnostics say which path was taken. A level above 100 and the reference's all-zero state are both refused rather than shown as a reading
+- Nintendo Switch Pro Controller and Joy-Con over Bluetooth (#63). Windows does not report
+  their battery, so the app reads the battery byte from the controller's own input report,
+  as SDL does: five levels (full, medium, low, critical, empty) and the charging bit. The
+  controller mode is never changed: the app only listens, or sends one read-only subcommand
+  (0x02, request device info). **Unverified** - no Switch controller was on hand.
+  `tests/test_nintendo.py` covers every battery byte, the packet, both modes and the timeouts.
 
 ## [1.11.0] - 2026-09-27
 

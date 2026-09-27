@@ -63,9 +63,9 @@ import winevents  # noqa: E402
 from providers import hidlist  # noqa: E402
 from providers import (AudezeProvider, BarracudaProvider, BluetoothProvider,  # noqa: E402
                        DeviceStatus, HyperXCloud3Provider, HyperXProvider, JblProvider,
-                       KeychronProvider, LogitechProvider, MchoseProvider, PlayStationProvider,
-                       PulsarProvider, RazerProvider, SteelSeriesProvider, WLmouseProvider,
-                       XInputProvider)
+                       KeychronProvider, LogitechProvider, MchoseProvider, NintendoProvider,
+                       PlayStationProvider, PulsarProvider, RazerProvider, SteelSeriesProvider,
+                       WLmouseProvider, XInputProvider)
 from providers.bluetooth import BluetoothWatcher  # noqa: E402
 
 HEADSET_WORDS = ("blackshark", "kraken", "barracuda", "nari", "thresher", "headset",
@@ -454,7 +454,7 @@ class App:
         self.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
                           HyperXCloud3Provider(), HyperXProvider(), KeychronProvider(), PulsarProvider(),
                           JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
-                          PlayStationProvider(), BarracudaProvider()]
+                          PlayStationProvider(), BarracudaProvider(), NintendoProvider()]
         self.bt = BluetoothProvider()
         self.icons: Dict[str, DeviceIcon] = {}
         self.placeholder: Optional[pystray.Icon] = None
@@ -1133,7 +1133,7 @@ def probe():
     app.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
                      HyperXCloud3Provider(), HyperXProvider(), KeychronProvider(), PulsarProvider(),
                      JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
-                     PlayStationProvider(), BarracudaProvider()]
+                     PlayStationProvider(), BarracudaProvider(), NintendoProvider()]
     app.bt = BluetoothProvider()
     res = []
     for p in app.providers + [app.bt]:

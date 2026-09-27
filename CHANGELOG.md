@@ -26,6 +26,29 @@ and the project follows [Semantic Versioning](https://semver.org/).
   The rest of the segment comes from the interface, so two receivers still differ.
 - **The module compiles without an invalid-escape warning.** The `_instance` docstring shows
   a Windows device path and was not a raw string, so Python 3.12 warned about `\H`.
+- The PlayStation provider waited out its full 1.5 s window on *every* collection a
+  controller exposes, so a DualShock 4 or DualSense that answered on none of its audio,
+  touch or sensor collections held the poll loop for up to 6 s and delayed every other
+  device's update behind it (measured: 6.0 s with four silent collections, 4.5 s when
+  the gamepad collection was listed third). The gamepad collection - the one that
+  carries the battery - is now tried first, and one controller may cost the poll at most
+  2.5 s in total, after which the remaining collections are skipped and the diagnostics
+  say so.
+- A controller that is connected but whose battery can never be read - another app such as
+  DS4Windows or HidHide holding the device, so every attempt to open it fails - kept the app's
+  fast re-check running indefinitely: that path shortens the poll interval for *every* provider
+  to 3 s, not just this one, so it never got cheaper. The fast path is now given up 120 s after
+  a reading first goes missing, with the reason in the diagnostics; the icon stays, the poll
+  cost does not.
+- **A DualShock 4 wireless adapter with no controller on it no longer shows a 0% icon.** The
+  adapter (`054C:0BA0`) streams report `01` whether or not a controller is paired with it, and
+  fills the battery field with zeros in that case - which was read as a real 0% reading, and at
+  0% the app also raises its low-battery alert, for a controller that is not there. Bit 2 of
+  `status[1]` is the adapter's "no controller connected" flag: the Linux driver calls it
+  `DS4_STATUS1_DONGLE_STATE` and treats it as not connected (`hid-playstation.c`; `hid-sony.c`
+  has no DualShock 4 or dongle code any more). The adapter is now left without a reading when
+  that bit is set, and the diagnostics say so. Reported by @ahmedkhursheed23 in
+  [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
 
 ## [1.11.0] - 2026-09-27
 
@@ -125,6 +148,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
   other collection; the diagnostics list what the dongle offers instead.
 
 ### Fixed
+- `--probe` now always lists every HID device it can see. The list was only printed when
+  the poll found nothing at all, so on a machine whose other devices answered, a device
+  that no provider sees - the case the list exists for - never appeared (found while
+  answering #21).
 - Razer mice that answer a battery request with somebody else's packet first are no
   longer written off as "off or asleep". Razer Synapse polls LED state on the same
   collection and its replies carry the same status byte as the battery reply, so the

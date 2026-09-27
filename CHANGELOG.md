@@ -70,6 +70,15 @@ and the project follows [Semantic Versioning](https://semver.org/).
   "Centurion" protocol, and the provider only matches that USB id.
   **Unverified** here: no A50 was on hand, so a level out of 0..100 is refused
   rather than shown.
+- Corsair wireless headsets (Void v2 Wireless, Virtuoso Max Wireless, HS80 Max
+  Wireless) through their receiver, without iCUE: exact level, from HeadsetControl's
+  corsair_void_v2w protocol. A minimal handshake wakes a sleeping headset for the
+  read, the same one HeadsetControl uses, which avoids the audible pop of switching
+  the headset into software mode.
+  **Unverified** here: no Corsair headset was on hand, and the receiver sometimes
+  answers with something other than a level, so that is retried and then refused
+  rather than shown. Charging is not reported - the reply carries no such flag, and
+  HeadsetControl reports this family as not charging either.
 
 ### Fixed
 - Tray: an extra "No devices found" icon could stay next to a device icon, for example

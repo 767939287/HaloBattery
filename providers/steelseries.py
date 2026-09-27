@@ -37,6 +37,7 @@ from .base import DeviceStatus, Provider, hexdump, log
 
 STEELSERIES_VID = 0x1038
 INTERFACE = 3
+VENDOR_USAGE_PAGE = 0xFFC0       # the configuration collection, whatever interface it is on
 REQUEST = [0x00, 0xB0]
 TIMEOUT = 1.0
 
@@ -87,20 +88,40 @@ MOUSE_READ_TIMEOUT_MS = 100
 
 
 def parse_rival3(r) -> Reading:
-    """Rival 3 Wireless: aa <level> <?> <charging> ..., the Windows report id in front.
+    """Rival 3 Wireless: either aa <level> <?> <charging> ... or <level> <?> <charging>.
 
-    The offsets follow the aa echo - see the module docstring - and are not confirmed
-    on hardware yet, so anything implausible yields no reading at all.
+    The two references disagree and neither has been confirmed on hardware here:
+
+      * yurtemre7/steel-mouse reads a reply that echoes the aa command - level in byte 1,
+        charging in byte 3 - although its own decoder and tests expect no echo at all
+      * flozz/rivalcfg sends the same request and then reads 3 bytes with hidapi exactly as
+        this provider does, taking the level in byte 0 and charging in byte 2; the same
+        layout is in its Rival 3 Wireless Gen 2 and Rival 650 profiles
+
+    Both are accepted, so the mouse works whichever is right:
+
+      * a leading report id byte of 0x00 is skipped
+      * if the next byte is the aa echo, the level and the charging flag follow it
+      * otherwise the reply is read the rivalcfg way - level first - but only when the
+        charging byte is 0 or 1, so a stray report on the collection cannot pass as a level
+      * a level above 100 is refused in both shapes
+
+    The diagnostics print the raw reply, so which shape the mouse actually sends is visible
+    in a probe.
     """
     if not r:
         return None, False, False
     m = 1 if r[0] == 0x00 and len(r) > 1 else 0
-    if len(r) < m + 4 or r[m] != MOUSE_ECHO:
-        return None, False, False
-    level = r[m + 1]
-    if not 0 <= level <= 100:
-        return None, False, False
-    return level, r[m + 3] != 0, True
+    if len(r) >= m + 4 and r[m] == MOUSE_ECHO:
+        level = r[m + 1]
+        if not 0 <= level <= 100:
+            return None, False, False
+        return level, r[m + 3] != 0, True
+    if len(r) >= m + 3:
+        level, charging = r[m], r[m + 2]
+        if 0 <= level <= 100 and charging in (0, 1):
+            return level, charging == 1, True
+    return None, False, False
 
 
 # Rival 3 Wireless / Rival 650 exchange, as listed by steel-mouse. None of these has
@@ -116,6 +137,29 @@ class SteelSeriesProvider(Provider):
 
     def __init__(self):
         self._diag: List[str] = []
+
+    def _pick(self, infos: List[dict]) -> Optional[dict]:
+        """The configuration collection of one device, picked by usage page.
+
+        Not by interface number: the Rival 650 exposes it on interface 0 (rivalcfg's profile
+        says endpoint 0, and rivalcfg issue #202 is about needing the usage page to find it
+        dependably - "the luck of the draw" without it), so filtering on interface 3 skips
+        that mouse altogether. When the page appears more than once, the collection on
+        interface 3 wins, which is where the Nova headsets and the Rival 3 have it, so their
+        path is unchanged.
+        """
+        mine = [d for d in infos
+                if (d.get("usage_page"), d.get("usage")) == (VENDOR_USAGE_PAGE, 0x0001)]
+        if not mine:
+            offered = ", ".join(f"{d.get('usage_page', 0):04x}:{d.get('usage', 0):04x}"
+                                for d in infos)
+            self._diag.append(f"  no usage {VENDOR_USAGE_PAGE:04x}:0001 collection "
+                              f"(found: {offered})")
+            return None
+        for d in mine:
+            if d.get("interface_number") == INTERFACE:
+                return d
+        return mine[0]
 
     def _read(self, path: bytes) -> Optional[List[int]]:
         dev = hid.device()
@@ -150,11 +194,13 @@ class SteelSeriesProvider(Provider):
             except Exception:
                 pass
 
-    def _read_mouse(self, path: bytes) -> Optional[List[int]]:
-        """00 aa 01 out, an aa reply back, up to three rounds as steel-mouse does.
+    def _read_mouse(self, path: bytes, parse=None) -> Optional[List[int]]:
+        """00 aa 01 out, then the first report the model's parser accepts.
 
-        Reports on the interface that do not carry the aa echo end the round and the
-        request is repeated, so a stray report never reads as a level.
+        A report carrying the aa echo is taken straight away. Otherwise the parser judges
+        it, so a layout that does not echo the command still works - which is what
+        flozz/rivalcfg describes for the Rival 3 - while the interface's other traffic is
+        refused. Up to three rounds are tried, as steel-mouse does.
         """
         dev = hid.device()
         try:
@@ -174,7 +220,11 @@ class SteelSeriesProvider(Provider):
                     if not r:
                         continue
                     if r[0] == MOUSE_ECHO or (r[0] == 0x00 and len(r) > 1 and r[1] == MOUSE_ECHO):
-                        self._diag.append(f"  reply: {hexdump(r, 8)}")
+                        self._diag.append(f"  reply (aa echo): {hexdump(r, 8)}")
+                        return r
+                    if parse is not None and parse(r)[2]:
+                        self._diag.append(f"  reply (no aa echo, read the way rivalcfg "
+                                          f"does): {hexdump(r, 8)}")
                         return r
                     self._diag.append(f"  reply (no aa echo): {hexdump(r, 8)}")
                     break
@@ -197,23 +247,23 @@ class SteelSeriesProvider(Provider):
             log.warning("hid.enumerate(steelseries): %s", e)
             return []
         out = []
-        seen = set()
-        for d in infos:
-            pid = d["product_id"]
-            if pid in seen or d.get("interface_number") != INTERFACE:
+        for pid in sorted({d["product_id"] for d in infos}):
+            if pid not in MOUSE_MODELS and pid not in MODELS:
+                continue
+            mine = [d for d in infos if d["product_id"] == pid]
+            d = self._pick(mine)
+            if d is None:
                 continue
             if pid in MOUSE_MODELS:
-                seen.add(pid)
                 name, parse = MOUSE_MODELS[pid]
                 self._diag.append(f"[SteelSeries] pid={pid:04x} '{name}' (mouse)")
-                level, chg, online = parse(self._read_mouse(d["path"]) or [])
+                level, chg, online = parse(self._read_mouse(d["path"], parse) or [])
                 if online and level is not None:
                     out.append(DeviceStatus(f"steelseries:{pid:04x}", name, level, chg, True,
                                             "steelseries", kind="mouse"))
                 continue
             if pid not in MODELS:
                 continue
-            seen.add(pid)
             name, parse = MODELS[pid]
             self._diag.append(f"[SteelSeries] pid={pid:04x} '{name}'")
             level, chg, online = parse(self._read(d["path"]) or [])

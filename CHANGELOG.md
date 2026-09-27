@@ -163,6 +163,7 @@ and the project follows [Semantic Versioning](https://semver.org/).
 - The menu header of a device said "No devices found" instead of the device and its
   level. pystray builds the Windows menu once, before the first reading; the menu is
   now rebuilt when the device's text changes.
+- HyperX Cloud III Wireless (`03F0:05B7`) over HID: battery and charging from the dongle's `0xFF13` vendor collection, next to the Cloud II support and alongside NGENUITY. **Unverified on hardware** - the packets, the reply ids and the level byte come from LennardKittner/HyperHeadset's implementation for this product id, which also documents the Windows-only fallback where a dongle accepts the packet only as a feature report; that fallback is implemented and the diagnostics say which path was taken. A level above 100 and the reference's all-zero state are both refused rather than shown as a reading
 
 ## [1.11.0] - 2026-09-27
 

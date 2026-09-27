@@ -4,6 +4,16 @@ All notable changes to Halo Battery are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- ASUS ROG / TUF wireless mice on their receiver or cable (#81: ROG Gladius III Wireless
+  AimPoint), with the battery command that G-Helper uses (`12 07` on the vendor collection of
+  interface 0): Gladius III / III Aimpoint / Eva 2, Chakram / Chakram X, Keris Wireless /
+  Aimpoint / EVA, Harpe Ace Aim Lab, Spatha X, Pugio II, Strix Impact II Wireless, TUF M4
+  Wireless and TX / TUF Gaming Mini. **Unverified** - no ASUS mouse was on hand.
+  `tests/test_asus.py` uses the interfaces from the #81 report.
+
 ## [1.11.0] - 2026-09-27
 
 ### Added

@@ -7,6 +7,22 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **The MCHOSE G7 request goes only to the G7.** `0xA8A5` is a chip maker's vendor id
+  ("YJX-CHIP") rather than a model, so other devices can sit behind it - and the G7's output
+  report was written to the `0xFF01` collection of any of them. `G7_PID` was defined but never
+  checked. Devices on that vendor id that are not the G7 are now left alone completely.
+- **The Audeze sequence goes only to known Maxwells, and only to a vendor collection.** The 14
+  packets were written to any device with vendor `0x3329` (`KNOWN` was only used to pick the
+  display name), and on a device that has no `0xFF13` collection they went to *every* collection
+  it exposes, including the consumer-control and telephony pages that answer nothing at all.
+  Only the product ids in `KNOWN` are talked to now, and the sequence only ever goes to a vendor
+  collection; a known Maxwell without one gets an icon and nothing is written to it.
+- **The Audeze docstring no longer claims the sequence writes nothing.** It said the byte that
+  marks a write (`0x00` or `0x82`) never appears in the sequence, but the seventh packet -
+  `06 07 00 05 5A 03 00 07 1C` - has `0x00` there. That packet is HeadsetControl's own, byte for
+  byte (`lib/devices/audeze_maxwell.hpp`, `UNIQUE_REQUESTS`), so either that byte is not a
+  read/write marker or that packet is not a plain read: the claim was asserted rather than
+  measured and is withdrawn. Reported by @ahmedkhursheed23 in
 - **Two Logitech receivers of the same kind** (any two Unifying receivers share
   `0xC52B`, and Lightspeed receivers share ids too) were merged into one group, so the
   second receiver's interface paths overwrote the first one's and the devices paired to

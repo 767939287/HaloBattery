@@ -7,6 +7,32 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- A wired Xbox-compatible controller could show **5%** while on the cable: `BatteryLevel`
+  is documented as valid only for wireless devices, and a wired pad's byte is whatever the
+  driver left in the field, so it is no longer read as a level (the last wireless reading
+  is still kept, and a pad with none says full).
+- With two Xbox-compatible controllers, one could take the *other* controller's level and
+  name: `RawGameControllers` was indexed by slot number, but it is not the XInput slot list
+  - it also holds controllers XInput cannot see (a DualSense, a wheel) whose order is not
+  the slot order. Only the vendors this provider reads are considered now, and the reports
+  are paired with the slots only when the two counts agree; otherwise the coarse XInput
+  level is used instead of another controller's report.
+- A controller connected over Bluetooth could appear twice - its XInput icon plus the
+  Windows Bluetooth one - whenever Windows.Gaming.Input returned no report. The transport
+  is now also derived from the HID device paths, which cannot mistake a 2.4 GHz receiver
+  for a Bluetooth link because such a receiver also exposes a non-Bluetooth interface. A
+  game controller of these vendors on a Bluetooth path counts on its own, so another device
+  of the same vendor on USB - a Microsoft mouse or keyboard - no longer switches that
+  detection off for Xbox pads.
+- Windows.Gaming.Input is now asked only for controllers Windows can hand out as a
+  **Gamepad**. `RawGameControllers` lists wheels, flight sticks and other controllers XInput
+  cannot see as well, and they were being matched against the XInput slots they do not have.
+- A controller that Windows.Gaming.Input cannot place on Bluetooth, because its device path
+  carries no Bluetooth service guid, still showed a second icon: "Xbox controller: 10%" (the
+  unusable remain=100 against full=1000) next to the correct "Xbox Wireless Controller: 77%"
+  from Windows' own Bluetooth battery. A Bluetooth gamepad of the same device family now
+  counts as the same device, compared exactly so the "Xbox controller 1"/"Xbox controller 2"
+  names of two controllers cannot collapse into one icon. Reported by a reader on Reddit.
 - **The MCHOSE G7 request goes only to the G7.** `0xA8A5` is a chip maker's vendor id
   ("YJX-CHIP") rather than a model, so other devices can sit behind it - and the G7's output
   report was written to the `0xFF01` collection of any of them. `G7_PID` was defined but never

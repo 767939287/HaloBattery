@@ -188,6 +188,12 @@ and the project follows [Semantic Versioning](https://semver.org/).
   seconds and the last level heard is kept. The receiver also pushes a power report 0x09 (byte 1 is 0x00
   when the headset is off and 0x01 when it is on, confirmed on a real unit) and a 0x02 frame; none of them
   is a level, and a headset last seen switched off explains itself in the diagnostics. The report has no charging flag, so none is shown.
+- Keychron support over the Ultra-Link 8K receiver (3434:D028) and the cable (3434:D048,
+  the M5), without Keychron's own software: the vendor protocol - a 64-byte feature
+  report `b3 06` answered by a 64-byte input report `b4 06` whose byte 20 is the level -
+  as implemented by csutcliff/keychron-battery-dkms for these two ids.
+  **Unverified** here: no Keychron device was on hand, so a level above 100 is refused
+  rather than shown. Charging is not reported - the reply carries no such flag.
 - Logitech support over HID++ 2.0, without G HUB (and alongside it). Every device
   paired to a Lightspeed or Unifying receiver gets its own icon, named as the device
   reports itself; the level comes from the unified battery, battery status or battery

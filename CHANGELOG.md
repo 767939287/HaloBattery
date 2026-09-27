@@ -20,6 +20,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
     a request. The Arctis Pro GameDAC is left out, because it is a wired headset.
 
 ### Fixed
+- Tray: an extra "No devices found" icon could stay next to a device icon, for example
+  after a mouse woke up from sleep (#95, #38). The "no devices" icon is now made once
+  and only shown or hidden, and an icon is shown only after its window exists. pystray
+  ignores a stop and loses a show that comes before that.
 - Arctis Nova 7: while the headset is off or still switching on, the dongle repeats
   the last battery level. The app showed that old level as live for a few seconds.
   The link byte (byte 1: 03 = connected, 02 = not connected) is now checked too.

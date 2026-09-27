@@ -60,9 +60,18 @@ class FakeTrayIcon:
 
     def __init__(self, *args, **kw):
         self.stopped = False
+        self.visible = False
+        self.shows = []           # every change of visible, in order
 
-    def run(self):
-        pass
+    def __setattr__(self, name, value):
+        if name == "visible" and "shows" in self.__dict__:
+            self.shows.append(value)
+        super().__setattr__(name, value)
+
+    def run(self, setup=None):
+        # pystray calls setup once the icon's window exists
+        if setup is not None:
+            setup(self)
 
     def stop(self):
         self.stopped = True

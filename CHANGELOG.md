@@ -7,6 +7,20 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- The PlayStation provider waited out its full 1.5 s window on *every* collection a
+  controller exposes, so a DualShock 4 or DualSense that answered on none of its audio,
+  touch or sensor collections held the poll loop for up to 6 s and delayed every other
+  device's update behind it (measured: 6.0 s with four silent collections, 4.5 s when
+  the gamepad collection was listed third). The gamepad collection - the one that
+  carries the battery - is now tried first, and one controller may cost the poll at most
+  2.5 s in total, after which the remaining collections are skipped and the diagnostics
+  say so.
+- A controller that is connected but whose battery can never be read - another app such as
+  DS4Windows or HidHide holding the device, so every attempt to open it fails - kept the app's
+  fast re-check running indefinitely: that path shortens the poll interval for *every* provider
+  to 3 s, not just this one, so it never got cheaper. The fast path is now given up 120 s after
+  a reading first goes missing, with the reason in the diagnostics; the icon stays, the poll
+  cost does not.
 - **A DualShock 4 wireless adapter with no controller on it no longer shows a 0% icon.** The
   adapter (`054C:0BA0`) streams report `01` whether or not a controller is paired with it, and
   fills the battery field with zeros in that case - which was read as a real 0% reading, and at

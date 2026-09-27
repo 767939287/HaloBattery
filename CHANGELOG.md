@@ -18,8 +18,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
   dongle whose control collection only takes a longer report still gets read instead of
   looking switched off (spotted by ahmedkhursheed23). The cable id (`3554:F58C`) is added
   from the reporter's second report, where the wired mouse lists the same eight collections
-  and the same frame applies; it has not been read itself yet. Confirmed on hardware on the
-  receiver by the reporter, who built the change and read the mouse's level. Reported by
+  and the same frame applies. Both transports are now confirmed on the reporter's hardware:
+  the receiver read the mouse's level, and on the cable the level matched ATK's own panel
+  (hub.atk.pro) with the charging flag following the cable in both directions. Reported by
   huyxs2005.
 - SteelSeries: older and other Arctis headsets. Not tested on these headsets; the raw
   replies go to the diagnostics.

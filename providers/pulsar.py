@@ -11,7 +11,9 @@ Protocol from andrewrabert/python-pulsar-mouse-tool, which also backs the
 
 The cable id (3554:f58c) is claimed too, from the reporter's second report in #87: the
 wired mouse lists the same eight collections as the receiver, and the panel below reads it
-with the same command 0x04 frame.
+with the same command 0x04 frame. Both transports are confirmed on that reporter's
+hardware - the receiver read the mouse's level, and on the cable the level agreed with
+ATK's own panel (hub.atk.pro) and the charging flag followed the cable.
 
 The ATK and Compx builds are also handled by the OpenMouse project's ATK/VXE panel
 (@openmouse/protocol, drivers/atk): it lists 3554:f58a for the R1 Pro Max receiver

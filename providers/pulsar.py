@@ -5,9 +5,13 @@ Protocol from andrewrabert/python-pulsar-mouse-tool, which also backs the
 
   * 3554:f508  Pulsar X2 V2 Mini (1 kHz dongle)      3554:f507  the same mouse on the cable
   * 3554:f58f  ATK VXE R1 SE+ (wired)                373b:1085  ATK VXE R1 SE+ (2.4 GHz)
-  * 3554:f58a  VXE R1 Pro Max (1 kHz dongle, #87)
+  * 3554:f58a  VXE R1 Pro Max (1 kHz dongle, #87)    3554:f58c  the same mouse on its cable
   * the Kysona M600 and the VXE Dragonfly R1 Pro use the same protocol (their ids are
     not in the tool, so they are not claimed here).
+
+The cable id (3554:f58c) is claimed too, from the reporter's second report in #87: the
+wired mouse lists the same eight collections as the receiver, and the panel below reads it
+with the same command 0x04 frame.
 
 The ATK and Compx builds are also handled by the OpenMouse project's ATK/VXE panel
 (@openmouse/protocol, drivers/atk): it lists 3554:f58a for the R1 Pro Max receiver
@@ -129,6 +133,7 @@ PIDS: Dict[int, Dict[int, str]] = {
         0xF507: "Pulsar X2 V2 Mini (wired)",
         0xF58F: "ATK VXE R1 SE+ (wired)",
         0xF58A: "VXE R1 Pro Max (2.4 GHz)",
+        0xF58C: "VXE R1 Pro Max (wired)",
     },
     0x373B: {
         0x1085: "ATK VXE R1 SE+ (2.4 GHz)",

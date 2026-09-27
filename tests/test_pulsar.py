@@ -8,6 +8,10 @@ opening the one with usage page 0xFF02 and usage 0x0002. That panel reads the ba
 providers/pulsar.py does, so the fake answers only on that collection - the first
 interface-1 collection stays silent, which is what the real dongle does.
 
+The same mouse on its cable (3554:f58c) is the reporter's second report in that issue: it
+lists the same eight collections, so the same rule picks ff02:0002 and the same frame
+applies.
+
 hidlist.enumerate() and hid.device() are replaced: the real ones ask Windows for
 collections of real devices.
 
@@ -148,6 +152,19 @@ class PulsarTest(unittest.TestCase):
         diag = "\n".join(provider.diagnostics())
         self.assertIn("[Pulsar] pid=3554:f58a 'VXE R1 Pro Max (2.4 GHz)'", diag)
         self.assertIn("3900 mV", diag)
+
+    def test_the_r1_pro_max_on_its_cable_is_read(self):
+        # the reporter's second report: the wired mouse is 3554:f58c, product string
+        # 'VXE R1 PRO MAX', with the same eight collections as the receiver
+        bus = self.one_receiver(vid=0x3554, pid=0xF58C, replies=[reply(54, 1, 4020)])
+        found = P.PulsarProvider().poll()
+        self.assertEqual(1, len(found))
+        d = found[0]
+        self.assertEqual("pulsar:3554f58c", d.key)
+        self.assertEqual("VXE R1 Pro Max (wired)", d.name)
+        self.assertEqual(54, d.level)
+        self.assertTrue(d.charging)
+        self.assertEqual([(0xFF02, 0x0002)], bus.written())
 
     def test_the_vendor_control_collection_is_the_one_that_gets_the_request(self):
         bus = self.one_receiver(replies=[reply(64)])

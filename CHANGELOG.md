@@ -44,6 +44,25 @@ and the project follows [Semantic Versioning](https://semver.org/).
   80% a poll later). A 0% in the first 90 seconds is now shown as "battery level not
   reported yet", and the app re-checks every 3 seconds until the real level arrives
   instead of waiting a full poll interval. After 90 seconds 0% is believed.
+
+## [1.12.0] - 2026-09-28
+
+A big device release: support for many more mice, keyboards and headsets - ASUS, G-Wolves,
+LAMZU, Lofree, Keychron, Pulsar/ATK/VXE, Nintendo Switch controllers, Logitech headsets,
+more SteelSeries Arctis and Aerox models, HyperX Cloud III, Astro A50 Gen 5 and Corsair
+headsets, among others. Devices can now be hidden or renamed, the app can tell you when
+a device is fully charged, and each device can get the pictogram you pick. Tray icons keep
+their place between starts, the extra "No devices found" icon is gone, and settings and
+autostart are more robust. Many of the new devices are marked **Unverified** below: if you
+own one, please tell us whether the level matches.
+
+### Added
+- **Hide a device** (#23): "Hide this device" in the menu of a device icon removes the
+  icon and stops the low battery alert for that device, for example a controller that
+  always reports 100%. "Hidden devices" lists them; a click shows one again.
+- **Rename a device**: "Rename…" opens a Windows input box. The name is used in the
+  tooltip, the menu header and the low battery alert; "Reset name" goes back to the
+  device's own name. The pictogram does not change.
 - **Fully charged**: a notification when a charging device reaches 100%, once per charge
   (a 99/100% wobble on the charger does not repeat it). "Alert when fully charged" in
   Preferences turns it off.
@@ -55,51 +74,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
   shows the level, charging, and "headset off". The model list comes from
   HeadsetControl; the feature layout comes from Solaar. A G733 is read on hardware (#75);
   its percentage is an estimate from the voltage and can differ from G HUB's.
-- Logitech receivers are also recognised by their product id (Solaar's list), not
-  only by "receiver" in the product name.
-- Pulsar/ATK: the VXE R1 Pro Max 1 kHz dongle (`3554:F58A`) reported in #87. The
-  provider never queried it, because the id was not in its table. The ATK/VXE control panel of
-  the OpenMouse project (`@openmouse/protocol`, `drivers/atk`) lists it as the R1 Pro Max receiver and reads
-  the battery with the same command `0x04` frame this provider already speaks, from the
-  collection with usage page `0xFF02` and usage `0x0002` - which is now preferred, because
-  the dongle has five other interface-1 collections and the first of them is not the one
-  that answers. The level, the charging flag and the millivolts come out at the same
-  offsets. A collection whose output report cannot carry the 17-byte frame is skipped, so a
-  dongle whose control collection only takes a longer report still gets read instead of
-  looking switched off (spotted by ahmedkhursheed23). The cable id (`3554:F58C`) is added
-  from the reporter's second report, where the wired mouse lists the same eight collections
-  and the same frame applies. Both transports are now confirmed on the reporter's hardware:
-  the receiver read the mouse's level, and on the cable the level matched ATK's own panel
-  (hub.atk.pro) with the charging flag following the cable in both directions. Reported by
-  huyxs2005.
+- HyperX Cloud III Wireless (`03F0:05B7`) over HID: battery and charging from the dongle's `0xFF13` vendor collection, next to the Cloud II support and alongside NGENUITY. **Unverified on hardware** - the packets, the reply ids and the level byte come from LennardKittner/HyperHeadset's implementation for this product id, which also documents the Windows-only fallback where a dongle accepts the packet only as a feature report; that fallback is implemented and the diagnostics say which path was taken. A level above 100 and the reference's all-zero state are both refused rather than shown as a reading
 - Lofree Hyzen keyboards on their 2.4 GHz dongle (`388D:0025`, #82), with the battery query of Lofree's
   own web driver (command `1A` in its report 0x04 transaction). **Unverified** - no Lofree keyboard was on
   hand. `tests/test_lofree.py` uses the collections from the #82 report.
-- SteelSeries: older and other Arctis headsets. Not tested on these headsets; the raw
-  replies go to the diagnostics.
-  - On the `b0` exchange (interface 3): Arctis Nova 7P, Nova 3P / 3X Wireless,
-    Arctis 7+ (and the PS5 / Xbox / Destiny editions), Arctis GameBuds.
-  - With their own requests: Arctis 1 Wireless / 7X / 7P (`06 12`), Arctis 7
-    (`06 14` then `06 18`), Arctis Pro Wireless 2019 (`06 18`), Arctis 9 (`00 20`),
-    Arctis Pro Wireless (`41 aa` then `40 aa`).
-  - Model list and layouts from HeadsetControl; the echo checks and the Arctis 7
-    connection query from the Linux driver `hid-steelseries-arctis.c`. A reply that
-    does not answer the request is never read as a level. Only vendor collections get
-    a request. The Arctis Pro GameDAC is left out, because it is a wired headset.
-- SteelSeries Arctis Nova Pro Wireless (base stations `1038:12E0` and `1038:12E5` X),
-  ported from HeadsetControl's `steelseries_arctis_nova_pro_wireless.hpp`: the same `b0`
-  exchange as the other Nova headsets, asked for with report id `06` - on interface 4 as
-  HeadsetControl asks, and interface 3 too. The request reaches only a vendor collection
-  of those two product ids. The level is a nine-step code in byte 6 and the state in byte
-  15 (`01` off / out of range, `02` cable charging, `08` on battery), so nine steps are
-  shown as "about NN%", `01` gives no reading at all instead of 0 %, and any other state
-  byte, a level code above 8 or a reply shorter than 16 bytes is refused rather than
-  shown. Covered by the Nova Pro cases in `tests/test_steelseries.py`. The interface and the
-  collection are confirmed by the diagnostics in
-  [#41](https://github.com/HeyOkay/HaloBattery/issues/41) (`1038:12e5` exposes `ffc0:0001`
-  on interface 4, with a second vendor collection `ff00:0001` on the same interface, so
-  both are tried and the one that answers is remembered). **Unverified**: the reply
-  layout - the nine steps and the state bytes - is HeadsetControl's, not yet seen here.
 - Astro A50 Gen 5 support through its base station, without G HUB: exact level, and
   charging while the headset sits on the dock (the station reports that as byte 8).
   The protocol is HeadsetControl's, reverse-engineered from G HUB captures and
@@ -116,12 +94,144 @@ and the project follows [Semantic Versioning](https://semver.org/).
   answers with something other than a level, so that is retried and then refused
   rather than shown. Charging is not reported - the reply carries no such flag, and
   HeadsetControl reports this family as not charging either.
+- JBL Quantum 910 Wireless support through its dongle: the headset pushes report 0x08
+  with the level in byte 1, the pattern plugato/JBL_Baterry_Monitor confirmed on this
+  USB id (0ECB:2088, one vendor collection `ff13:0001`, interface 5 on a real unit). There is no request to send, and the headset can
+  stay quiet for long stretches, so the last level heard is kept and shown greyed out.
+  Confirmed on a real unit: the provider finds the receiver, matches its collection and shows the level,
+  and a capture from that unit reads `08 5f 03 ...` - report 0x08 with byte 1 = `0x5f` = 95%, at the
+  moment JBL's own app showed 95%. The report is an event: it arrives when the headset is plugged into
+  its charger, and pressing buttons or the volume rocker does not produce it, so the listen window is ten
+  seconds and the last level heard is kept. The receiver also pushes a power report 0x09 (byte 1 is 0x00
+  when the headset is off and 0x01 when it is on, confirmed on a real unit) and a 0x02 frame; none of them
+  is a level, and a headset last seen switched off explains itself in the diagnostics. The report has no charging flag, so none is shown.
+- Keychron support over the Ultra-Link 8K receiver (3434:D028) and the cable (3434:D048,
+  the M5), without Keychron's own software: the vendor protocol - a 64-byte feature
+  report `b3 06` answered by a 64-byte input report `b4 06` whose byte 20 is the level -
+  as implemented by csutcliff/keychron-battery-dkms for these two ids.
+  **Unverified** here: no Keychron device was on hand, so a level above 100 is refused
+  rather than shown. Charging is not reported - the reply carries no such flag.
+- Pulsar, ATK and VXE wireless mice (Pulsar X2 V2 Mini, ATK VXE R1 SE+) over their dongle
+  or cable, without vendor software: 17-byte frames carrying a checksum, command 0x04 for
+  the power details, level in byte 6 and the on-cable flag in byte 7. Protocol from
+  andrewrabert/python-pulsar-mouse-tool, which also backs the "HID: pulsar" driver in
+  review for Linux. **Unverified** here: no such mouse was on hand, so a frame whose
+  checksum does not match is refused rather than shown.
+- Pulsar/ATK: the VXE R1 Pro Max 1 kHz dongle (`3554:F58A`) reported in #87. The
+  provider never queried it, because the id was not in its table. The ATK/VXE control panel of
+  the OpenMouse project (`@openmouse/protocol`, `drivers/atk`) lists it as the R1 Pro Max receiver and reads
+  the battery with the same command `0x04` frame this provider already speaks, from the
+  collection with usage page `0xFF02` and usage `0x0002` - which is now preferred, because
+  the dongle has five other interface-1 collections and the first of them is not the one
+  that answers. The level, the charging flag and the millivolts come out at the same
+  offsets. A collection whose output report cannot carry the 17-byte frame is skipped, so a
+  dongle whose control collection only takes a longer report still gets read instead of
+  looking switched off (spotted by ahmedkhursheed23). The cable id (`3554:F58C`) is added
+  from the reporter's second report, where the wired mouse lists the same eight collections
+  and the same frame applies. Both transports are now confirmed on the reporter's hardware:
+  the receiver read the mouse's level, and on the cable the level matched ATK's own panel
+  (hub.atk.pro) with the charging flag following the cable in both directions. Reported by
+  huyxs2005.
+- Nintendo Switch Pro Controller and Joy-Con over Bluetooth (#63). Windows does not report
+  their battery, so the app reads the battery byte from the controller's own input report,
+  as SDL does: five levels (full, medium, low, critical, empty) and the charging bit. The
+  controller mode is never changed: the app only listens, or sends one read-only subcommand
+  (0x02, request device info). **Unverified** - no Switch controller was on hand.
+  `tests/test_nintendo.py` covers every battery byte, the packet, both modes and the timeouts.
+- ASUS ROG / TUF wireless mice on their receiver or cable (#81: ROG Gladius III Wireless
+  AimPoint), with the battery command that G-Helper uses (`12 07` on the vendor collection of
+  interface 0): Gladius III / III Aimpoint / Eva 2, Chakram / Chakram X, Keris Wireless /
+  Aimpoint / EVA, Harpe Ace Aim Lab, Spatha X, Pugio II, Strix Impact II Wireless, TUF M4
+  Wireless and TX / TUF Gaming Mini. **Unverified** - no ASUS mouse was on hand.
+  `tests/test_asus.py` uses the interfaces from the #81 report.
+- G-Wolves mice on the 8K receiver (`33E4:3854`) or the cable (#82: G-Wolves WARG 8K), with the
+  WLmouse feature report exchange that G-Wolves' own web driver (mouse.xyz) uses for these
+  mice. The request goes only to the collection with a 64-byte feature report. **Unverified** -
+  no G-Wolves mouse was on hand. `tests/test_gwolves.py` uses the collections from the #82 report.
+- LAMZU Maya X on its 8K dongle (`373E:001E`) or the cable (`373E:001C`), without Lamzu's own
+  software. It is the same feature report exchange as the WLmouse and G-Wolves mice - one
+  request, `00 00 02 02 00 83`, answered by `a1 00 02 02 00 83 <charging> <battery %>` - sent
+  only to the vendor collection (usage page `0xFFFF`) of interface 2. Protocol from
+  Sheroune/lamzu-battery-monitory (MIT) and its Linux port; the collections match a
+  diagnostics report from a real Maya X 8K dongle. **Unverified** on hardware here.
+- SteelSeries Aerox 3 Wireless (`1038:1838`) over HID: battery and charging on the receiver's vendor protocol, next to the existing Nova headsets and alongside SteelSeries GG. **Unverified on hardware** - the interface, the `0xD2` query and the level scale come from three sources that agree on this product id (alloyctl's reverse engineering of `1038:1838`, yurtemre7/steel-mouse, and the capture notes at gort818/aerox3-wireless), but no Aerox 3 Wireless was available here. A level byte of 0 is read as off or asleep rather than empty, and a reply without the `d2` echo is refused rather than shown as a level. The CS2 Dragon Lore edition (`1038:1878`) is included untested
+- SteelSeries Aerox 9 Wireless (`1038:1858`, WOW Edition `1874`, #79) and Aerox 5 Wireless (`1038:1852`, `185C`, `1860`) in 2.4 GHz mode, on the same `00 d2` exchange as the Aerox 3 Wireless: rivalcfg builds the wireless profiles of all three mice the same way. The level is confirmed on an Aerox 9 Wireless by @AJD00m (#79): the reply `d2 04 ...` gives 15 %, the same as SteelSeries GG. Not tested yet: the charging bit, and the Aerox 5. `tests/test_steelseries_aerox.py` uses the interfaces and the reply from the #79 reports.
+- SteelSeries Arctis Nova Pro Wireless (base stations `1038:12E0` and `1038:12E5` X),
+  ported from HeadsetControl's `steelseries_arctis_nova_pro_wireless.hpp`: the same `b0`
+  exchange as the other Nova headsets, asked for with report id `06` - on interface 4 as
+  HeadsetControl asks, and interface 3 too. The request reaches only a vendor collection
+  of those two product ids. The level is a nine-step code in byte 6 and the state in byte
+  15 (`01` off / out of range, `02` cable charging, `08` on battery), so nine steps are
+  shown as "about NN%", `01` gives no reading at all instead of 0 %, and any other state
+  byte, a level code above 8 or a reply shorter than 16 bytes is refused rather than
+  shown. Covered by the Nova Pro cases in `tests/test_steelseries.py`. The interface and the
+  collection are confirmed by the diagnostics in
+  [#41](https://github.com/HeyOkay/HaloBattery/issues/41) (`1038:12e5` exposes `ffc0:0001`
+  on interface 4, with a second vendor collection `ff00:0001` on the same interface, so
+  both are tried and the one that answers is remembered). **Unverified**: the reply
+  layout - the nine steps and the state bytes - is HeadsetControl's, not yet seen here.
+- SteelSeries: older and other Arctis headsets. Not tested on these headsets; the raw
+  replies go to the diagnostics.
+  - On the `b0` exchange (interface 3): Arctis Nova 7P, Nova 3P / 3X Wireless,
+    Arctis 7+ (and the PS5 / Xbox / Destiny editions), Arctis GameBuds.
+  - With their own requests: Arctis 1 Wireless / 7X / 7P (`06 12`), Arctis 7
+    (`06 14` then `06 18`), Arctis Pro Wireless 2019 (`06 18`), Arctis 9 (`00 20`),
+    Arctis Pro Wireless (`41 aa` then `40 aa`).
+  - Model list and layouts from HeadsetControl; the echo checks and the Arctis 7
+    connection query from the Linux driver `hid-steelseries-arctis.c`. A reply that
+    does not answer the request is never read as a level. Only vendor collections get
+    a request. The Arctis Pro GameDAC is left out, because it is a wired headset.
+- Razer Barracuda Pro (2.4 GHz) support through its receiver (1532:053a), which does not
+  answer the standard Razer request: the headset speaks the "PA" protocol, decoded from a
+  USBPcap capture of Razer Synapse on a real unit. Battery command 0x21, charging 0x2A, and
+  the `razer` provider hands this PID over instead of reporting "no reply" for it.
+  Confirmed on hardware by @phl23 in
+  [#10](https://github.com/HeyOkay/HaloBattery/issues/10): the level tracks (34% while the
+  capture was taken, 27% when the branch was tested), the charging state follows the
+  charger, and a switched-off headset reports "no link" instead of a stale value.
+- Razer: the model table now has every wireless mouse whose battery OpenRazer reads, with
+  OpenRazer's transaction id: for example the Pro Click V2 Vertical Edition (#58), Pro Click V2,
+  Pro Click (Mini), Naga V2 Pro, Naga V2 HyperSpeed, Viper V3 HyperSpeed, Viper Mini SE,
+  DeathAdder V3 HyperSpeed, Basilisk Mobile, Orochi V2, Atheris and the older Mamba / Lancehead
+  mice. Before, a mouse without "wireless" or "HyperSpeed" in its name was skipped.
+  `tests/test_razer.py` checks the table against a copy of OpenRazer's list.
+
+### Changed
+- **The keyboard pictogram is a single keycap with a K.** The old one, a whole keyboard with
+  rows of keys cut out, turned into a grey bar at 16 px; one square key with a bold K reads
+  at tray size on a light and a dark taskbar and does not look like the mouse.
+- The settings are in a **Preferences** submenu: poll interval, low battery alert,
+  Bluetooth, pictogram, charging animation, icon colour, start with Windows and the
+  update check. The main menu keeps the items used often.
+- Logitech receivers are also recognised by their product id (Solaar's list), not
+  only by "receiver" in the product name.
+- **Tray icons keep their place between starts** (#38). Windows remembers whether an icon
+  sits on the taskbar or in the hidden-icons flyout by the program and the icon's id, but
+  pystray gave every icon a new id on every start, so a device icon moved to the taskbar
+  went back to the flyout after a restart. Each device icon now has an id of its own that
+  stays the same (and so does the "no devices found" icon), so the device icon and the
+  empty icon can be placed separately and should stay there.
 
 ### Fixed
 - Tray: an extra "No devices found" icon could stay next to a device icon, for example
   after a mouse woke up from sleep (#95, #38). The "no devices" icon is now made once
   and only shown or hidden, and an icon is shown only after its window exists. pystray
   ignores a stop and loses a show that comes before that.
+- **The charging animation no longer writes a temporary file for every frame** (#61).
+  pystray saves each new image to a temporary `.ico` file and loads it back, so a charging
+  device meant about ten file writes a second, which disks and antivirus programs notice.
+  The icon handle of every frame is now kept, and the 30 frames of a cycle are loaded
+  once.
+- **"Start with Windows" is not pointed at a temporary folder** (#61). Opened straight
+  from the ZIP (Explorer or WinRAR unpack it into `%TEMP%` and delete it later), the app
+  wrote that path into the autostart entry, which then led nowhere after the next
+  reboot. It now says to extract the ZIP first instead, and a copy running from a
+  temporary folder never takes over an existing autostart entry.
+- **A damaged settings file no longer breaks the app** (#61). The settings are written to
+  a temporary file and swapped in, so a crash or a full disk while saving cannot leave
+  half a file. A file that is not valid JSON is kept as `config.json.bad` and the
+  defaults are used, and a single wrong value (a string as the poll interval, an interval
+  of 0) falls back to its default instead of being used.
 - Logitech: "slow charging" (status 4) now shows as charging.
 - Logitech: an error reply is accepted only when it answers our own request. Before,
   an error reply to G HUB's request could make a mouse show as "off".
@@ -142,29 +252,12 @@ and the project follows [Semantic Versioning](https://semver.org/).
   Verified on a real Nova 7 (22A1).
 - SteelSeries: the Nova headsets are read only from their 0xFFC0 collection, not from
   whatever collection comes first on interface 3.
-- Razer: the model table now has every wireless mouse whose battery OpenRazer reads, with
-  OpenRazer's transaction id: for example the Pro Click V2 Vertical Edition (#58), Pro Click V2,
-  Pro Click (Mini), Naga V2 Pro, Naga V2 HyperSpeed, Viper V3 HyperSpeed, Viper Mini SE,
-  DeathAdder V3 HyperSpeed, Basilisk Mobile, Orochi V2, Atheris and the older Mamba / Lancehead
-  mice. Before, a mouse without "wireless" or "HyperSpeed" in its name was skipped.
-  `tests/test_razer.py` checks the table against a copy of OpenRazer's list.
-
-### Fixed
 - Razer: PIDs 008F / 0090 are the Naga Pro, not the Naga V2 Pro (OpenRazer). The Naga V2 Pro
   (00A7 / 00A8) was missing and was skipped.
 - Razer: the Basilisk X HyperSpeed (0083) is asked with transaction id 0xFF first, as in
   OpenRazer, not 0x1F.
 - Razer: PID 0078 is the wired Razer Viper, which has no battery. It was in the table as a
   "Viper Ultimate" and got battery requests. The Viper Ultimate is 007A / 007B.
-- Razer Barracuda Pro (2.4 GHz) support through its receiver (1532:053a), which does not
-  answer the standard Razer request: the headset speaks the "PA" protocol, decoded from a
-  USBPcap capture of Razer Synapse on a real unit. Battery command 0x21, charging 0x2A, and
-  the `razer` provider hands this PID over instead of reporting "no reply" for it.
-  Confirmed on hardware by @phl23 in
-  [#10](https://github.com/HeyOkay/HaloBattery/issues/10): the level tracks (34% while the
-  capture was taken, 27% when the branch was tested), the charging state follows the
-  charger, and a switched-off headset reports "no link" instead of a stale value.
-### Fixed
 - **SteelSeries Rival 3 Wireless replies are read in either layout.** flozz/rivalcfg sends the same `aa 01` request and reads the reply with the same hidapi call, but takes a 3-byte reply with the level in byte 0 and charging in byte 2, while yurtemre7/steel-mouse reads an `aa` echo with the level in byte 1 and charging in byte 3. Nothing has been on hardware here, so both are accepted now instead of only the echo shape - a reply without the echo used to be skipped, which would have left the mouse showing nothing if rivalcfg is the correct one. The diagnostics print the raw reply and name the shape. The discrepancy was reported by @ahmedkhursheed23 in [#5](https://github.com/HeyOkay/HaloBattery/issues/5).
 - **SteelSeries devices are found by usage page, not by interface number.** The configuration collection is `0xFFC0`, and the Rival 650 exposes it on interface 0 (rivalcfg's profile says endpoint 0, and rivalcfg issue #202 is about needing the usage page to find it dependably). Filtering on interface 3 skipped that mouse entirely. When the page appears more than once the collection on interface 3 wins, so the Nova headsets and the Rival 3 are read exactly as before. Pointed out by @ahmedkhursheed23 in [#5](https://github.com/HeyOkay/HaloBattery/issues/5).
 - **Keyboards were drawn with a mouse pictogram.** Both providers report
@@ -221,6 +314,7 @@ and the project follows [Semantic Versioning](https://semver.org/).
   byte (`lib/devices/audeze_maxwell.hpp`, `UNIQUE_REQUESTS`), so either that byte is not a
   read/write marker or that packet is not a plain read: the claim was asserted rather than
   measured and is withdrawn. Reported by @ahmedkhursheed23 in
+  [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
 - **Two Logitech receivers of the same kind** (any two Unifying receivers share
   `0xC52B`, and Lightspeed receivers share ids too) were merged into one group, so the
   second receiver's interface paths overwrote the first one's and the devices paired to
@@ -263,41 +357,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
   has no DualShock 4 or dongle code any more). The adapter is now left without a reading when
   that bit is set, and the diagnostics say so. Reported by @ahmedkhursheed23 in
   [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
-- **Hide a device** (#23): "Hide this device" in the menu of a device icon removes the
-  icon and stops the low battery alert for that device, for example a controller that
-  always reports 100%. "Hidden devices" lists them; a click shows one again.
-- **Rename a device**: "Rename…" opens a Windows input box. The name is used in the
-  tooltip, the menu header and the low battery alert; "Reset name" goes back to the
-  device's own name. The pictogram does not change.
-
-### Changed
-- The settings are in a **Preferences** submenu: poll interval, low battery alert,
-  Bluetooth, pictogram, charging animation, icon colour, start with Windows and the
-  update check. The main menu keeps the items used often.
-
-### Fixed
 - The menu header of a device said "No devices found" instead of the device and its
   level. pystray builds the Windows menu once, before the first reading; the menu is
   now rebuilt when the device's text changes.
-- HyperX Cloud III Wireless (`03F0:05B7`) over HID: battery and charging from the dongle's `0xFF13` vendor collection, next to the Cloud II support and alongside NGENUITY. **Unverified on hardware** - the packets, the reply ids and the level byte come from LennardKittner/HyperHeadset's implementation for this product id, which also documents the Windows-only fallback where a dongle accepts the packet only as a feature report; that fallback is implemented and the diagnostics say which path was taken. A level above 100 and the reference's all-zero state are both refused rather than shown as a reading
-- Nintendo Switch Pro Controller and Joy-Con over Bluetooth (#63). Windows does not report
-  their battery, so the app reads the battery byte from the controller's own input report,
-  as SDL does: five levels (full, medium, low, critical, empty) and the charging bit. The
-  controller mode is never changed: the app only listens, or sends one read-only subcommand
-  (0x02, request device info). **Unverified** - no Switch controller was on hand.
-  `tests/test_nintendo.py` covers every battery byte, the packet, both modes and the timeouts.
-- ASUS ROG / TUF wireless mice on their receiver or cable (#81: ROG Gladius III Wireless
-  AimPoint), with the battery command that G-Helper uses (`12 07` on the vendor collection of
-  interface 0): Gladius III / III Aimpoint / Eva 2, Chakram / Chakram X, Keris Wireless /
-  Aimpoint / EVA, Harpe Ace Aim Lab, Spatha X, Pugio II, Strix Impact II Wireless, TUF M4
-  Wireless and TX / TUF Gaming Mini. **Unverified** - no ASUS mouse was on hand.
-  `tests/test_asus.py` uses the interfaces from the #81 report.
-- G-Wolves mice on the 8K receiver (`33E4:3854`) or the cable (#82: G-Wolves WARG 8K), with the
-  WLmouse feature report exchange that G-Wolves' own web driver (mouse.xyz) uses for these
-  mice. The request goes only to the collection with a 64-byte feature report. **Unverified** -
-  no G-Wolves mouse was on hand. `tests/test_gwolves.py` uses the collections from the #82 report.
-- SteelSeries Aerox 3 Wireless (`1038:1838`) over HID: battery and charging on the receiver's vendor protocol, next to the existing Nova headsets and alongside SteelSeries GG. **Unverified on hardware** - the interface, the `0xD2` query and the level scale come from three sources that agree on this product id (alloyctl's reverse engineering of `1038:1838`, yurtemre7/steel-mouse, and the capture notes at gort818/aerox3-wireless), but no Aerox 3 Wireless was available here. A level byte of 0 is read as off or asleep rather than empty, and a reply without the `d2` echo is refused rather than shown as a level. The CS2 Dragon Lore edition (`1038:1878`) is included untested
-- SteelSeries Aerox 9 Wireless (`1038:1858`, WOW Edition `1874`, #79) and Aerox 5 Wireless (`1038:1852`, `185C`, `1860`) in 2.4 GHz mode, on the same `00 d2` exchange as the Aerox 3 Wireless: rivalcfg builds the wireless profiles of all three mice the same way. The level is confirmed on an Aerox 9 Wireless by @AJD00m (#79): the reply `d2 04 ...` gives 15 %, the same as SteelSeries GG. Not tested yet: the charging bit, and the Aerox 5. `tests/test_steelseries_aerox.py` uses the interfaces and the reply from the #79 reports.
+- `--probe` now always lists every HID device it can see. The list was only printed when
+  the poll found nothing at all, so on a machine whose other devices answered, a device
+  that no provider sees - the case the list exists for - never appeared (found while
+  answering #21).
 
 ## [1.11.0] - 2026-09-27
 
@@ -312,29 +378,6 @@ and the project follows [Semantic Versioning](https://semver.org/).
   Bluetooth at once keeps one icon. Thanks to @dendr203 (#7).
 - HyperX Cloud II Wireless over HID (`03F0:0696`, `03F0:018B`): battery and charging, using the exchange HeadsetControl documents for these product ids. **Unverified** - no Cloud II Wireless was on hand, so a reply that does not echo the command is ignored and a level above 100 refused rather than shown
 - SteelSeries Rival 3 Wireless (`1038:1830`) over HID: battery and charging on the mouse exchange, next to the existing Nova headsets and alongside SteelSeries GG. **Unverified** - the reply layout is the open question in [#5](https://github.com/HeyOkay/HaloBattery/issues/5), so a reply without the command echo is skipped and a level above 100 refused rather than shown
-- JBL Quantum 910 Wireless support through its dongle: the headset pushes report 0x08
-  with the level in byte 1, the pattern plugato/JBL_Baterry_Monitor confirmed on this
-  USB id (0ECB:2088, one vendor collection `ff13:0001`, interface 5 on a real unit). There is no request to send, and the headset can
-  stay quiet for long stretches, so the last level heard is kept and shown greyed out.
-  Confirmed on a real unit: the provider finds the receiver, matches its collection and shows the level,
-  and a capture from that unit reads `08 5f 03 ...` - report 0x08 with byte 1 = `0x5f` = 95%, at the
-  moment JBL's own app showed 95%. The report is an event: it arrives when the headset is plugged into
-  its charger, and pressing buttons or the volume rocker does not produce it, so the listen window is ten
-  seconds and the last level heard is kept. The receiver also pushes a power report 0x09 (byte 1 is 0x00
-  when the headset is off and 0x01 when it is on, confirmed on a real unit) and a 0x02 frame; none of them
-  is a level, and a headset last seen switched off explains itself in the diagnostics. The report has no charging flag, so none is shown.
-- Keychron support over the Ultra-Link 8K receiver (3434:D028) and the cable (3434:D048,
-  the M5), without Keychron's own software: the vendor protocol - a 64-byte feature
-  report `b3 06` answered by a 64-byte input report `b4 06` whose byte 20 is the level -
-  as implemented by csutcliff/keychron-battery-dkms for these two ids.
-  **Unverified** here: no Keychron device was on hand, so a level above 100 is refused
-  rather than shown. Charging is not reported - the reply carries no such flag.
-- Pulsar, ATK and VXE wireless mice (Pulsar X2 V2 Mini, ATK VXE R1 SE+) over their dongle
-  or cable, without vendor software: 17-byte frames carrying a checksum, command 0x04 for
-  the power details, level in byte 6 and the on-cable flag in byte 7. Protocol from
-  andrewrabert/python-pulsar-mouse-tool, which also backs the "HID: pulsar" driver in
-  review for Linux. **Unverified** here: no such mouse was on hand, so a frame whose
-  checksum does not match is refused rather than shown.
 - Logitech support over HID++ 2.0, without G HUB (and alongside it). Every device
   paired to a Lightspeed or Unifying receiver gets its own icon, named as the device
   reports itself; the level comes from the unified battery, battery status or battery
@@ -420,10 +463,6 @@ and the project follows [Semantic Versioning](https://semver.org/).
   other collection; the diagnostics list what the dongle offers instead.
 
 ### Fixed
-- `--probe` now always lists every HID device it can see. The list was only printed when
-  the poll found nothing at all, so on a machine whose other devices answered, a device
-  that no provider sees - the case the list exists for - never appeared (found while
-  answering #21).
 - Razer mice that answer a battery request with somebody else's packet first are no
   longer written off as "off or asleep". Razer Synapse polls LED state on the same
   collection and its replies carry the same status byte as the battery reply, so the
@@ -606,7 +645,9 @@ First public release.
   in or unplugged.
 - Settings and the autostart entry are migrated from the app's earlier name, Battery Tray.
 
-[Unreleased]: ../../compare/v1.10.1...HEAD
+[Unreleased]: ../../compare/v1.12.0...HEAD
+[1.12.0]: ../../compare/v1.11.0...v1.12.0
+[1.11.0]: ../../compare/v1.10.1...v1.11.0
 [1.10.1]: ../../compare/v1.10.0...v1.10.1
 [1.10.0]: ../../compare/v1.9.1...v1.10.0
 [1.9.1]: ../../compare/v1.9.0...v1.9.1

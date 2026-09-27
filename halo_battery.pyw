@@ -1,14 +1,18 @@
 """Halo Battery: battery levels of wireless devices in the Windows system tray.
 
 Supported:
-  * Razer (BlackShark V2 Pro headset, mice, etc.): directly over USB/HID, no Synapse
+  * Razer (BlackShark V2 Pro headset, mice, Barracuda Pro, etc.): directly over USB/HID, no Synapse
   * Audeze Maxwell (2.4 GHz dongle or USB-C cable)
   * WLmouse (Beast X / Beast X Max / Mini Pro)
   * Logitech (HID++ 2.0 mice, keyboards and headsets: Lightspeed / Unifying / Bolt receivers, G HUB not needed)
-  * SteelSeries (Arctis Nova, Arctis 1 / 7 / 9 / Pro Wireless / 7+ headsets, GameBuds, GG not needed)
+  * SteelSeries (Arctis Nova, Arctis 1 / 7 / 9 / Pro Wireless / 7+ headsets, GameBuds, Aerox mice,
+    GG not needed)
   * MCHOSE (M7 Ultra and the rest of the 0x5253 family, on the 2.4 GHz receiver)
+  * HyperX (Cloud II and Cloud III Wireless), JBL Quantum 910, Corsair, Astro A50 Gen 5,
+    Keychron, Lofree, Pulsar / ATK / VXE, ASUS ROG / TUF, G-Wolves and LAMZU Maya X mice
   * Xbox-compatible controllers (Windows.Gaming.Input / XInput)
   * PlayStation controllers (DualShock 4, DualSense): directly over USB/HID
+  * Nintendo Switch Pro Controller and Joy-Con over Bluetooth
   * Bluetooth devices whose battery level Windows knows (enabled from the menu)
 
 Run:   pythonw halo_battery.pyw
@@ -21,14 +25,16 @@ import logging
 import os
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+import zlib
 from logging.handlers import RotatingFileHandler
 from typing import Dict, List, Optional, Set
 
 APP_NAME = "HaloBattery"
 APP_TITLE = "Halo Battery"
-VERSION = "1.11.0"
+VERSION = "1.12.0"
 LEGACY_NAME = "BatteryTray"      # the app's previous name (settings and autostart are migrated)
 
 if getattr(sys, "frozen", False):
@@ -67,9 +73,9 @@ from providers import hidlist  # noqa: E402
 from providers import (AstroProvider, AsusProvider, AudezeProvider,  # noqa: E402
                        BarracudaProvider, BluetoothProvider, CorsairProvider, DeviceStatus,
                        GWolvesProvider, HyperXCloud3Provider, HyperXProvider, JblProvider,
-                       KeychronProvider, LofreeProvider, LogitechProvider, MchoseProvider,
-                       NintendoProvider, PlayStationProvider, PulsarProvider, RazerProvider,
-                       SteelSeriesProvider, WLmouseProvider, XInputProvider)
+                       KeychronProvider, LamzuProvider, LofreeProvider, LogitechProvider,
+                       MchoseProvider, NintendoProvider, PlayStationProvider, PulsarProvider,
+                       RazerProvider, SteelSeriesProvider, WLmouseProvider, XInputProvider)
 from providers.bluetooth import BluetoothWatcher  # noqa: E402
 
 HEADSET_WORDS = ("blackshark", "kraken", "barracuda", "nari", "thresher", "headset",
@@ -109,6 +115,7 @@ PROVIDER_LABELS = {
     "hyperx_cloud3": "HyperX Cloud III Wireless",
     "jbl": "JBL Quantum",
     "keychron": "Keychron",
+    "lamzu": "LAMZU mice",
     "lofree": "Lofree keyboards",
     "logitech": "Logitech",
     "mchose": "MCHOSE mice",
@@ -127,7 +134,8 @@ def make_providers() -> list:
             HyperXCloud3Provider(), HyperXProvider(), KeychronProvider(), PulsarProvider(),
             JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
             PlayStationProvider(), BarracudaProvider(), NintendoProvider(), AsusProvider(),
-            GWolvesProvider(), LofreeProvider(), AstroProvider(), CorsairProvider()]
+            GWolvesProvider(), LofreeProvider(), AstroProvider(), CorsairProvider(),
+            LamzuProvider()]
 
 
 # ---------------------------------------------------------------- config
@@ -144,22 +152,70 @@ def migrate_legacy_config() -> bool:
         return False
 
 
+LIMITS = {"interval": (5, 3600), "low": (0, 100)}   # a hand-edited value outside is not used
+_config_lock = threading.Lock()
+
+
+def _valid_setting(key: str, value) -> bool:
+    """A value from the settings file has the type of its default (and a sane range)."""
+    default = DEFAULTS[key]
+    if isinstance(default, bool):
+        return isinstance(value, bool)
+    if isinstance(default, int):
+        if isinstance(value, bool) or not isinstance(value, int):
+            return False
+        lo, hi = LIMITS.get(key, (value, value))
+        return lo <= value <= hi
+    return isinstance(value, type(default))
+
+
 def load_config() -> dict:
+    """The defaults, overridden by the settings file. A damaged file (not JSON, or
+    not a JSON object) is kept as config.json.bad and the defaults are used; a
+    single wrong value (a string for the poll interval, an interval of 0) falls
+    back to its default instead of breaking the app."""
     cfg = dict(DEFAULTS)
     try:
         with open(CONFIG_PATH, encoding="utf-8") as f:
-            cfg.update(json.load(f))
-    except (OSError, ValueError):
-        pass
+            data = json.load(f)
+    except OSError:
+        return cfg                               # no settings yet
+    except ValueError as e:
+        data = e
+    if not isinstance(data, dict):
+        log.warning("config: %s is damaged (%s), using the defaults", CONFIG_PATH,
+                    data if isinstance(data, Exception) else type(data).__name__)
+        try:
+            os.replace(CONFIG_PATH, CONFIG_PATH + ".bad")
+        except OSError:
+            pass
+        return cfg
+    for key, value in data.items():
+        if key in DEFAULTS and not _valid_setting(key, value):
+            log.warning("config: ignoring %s=%r, using %r", key, value, DEFAULTS[key])
+            continue
+        cfg[key] = value
     return cfg
 
 
 def save_config(cfg: dict) -> None:
-    try:
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
-    except OSError as e:
-        log.warning("save_config: %s", e)
+    """Write the settings to a temporary file first and then swap it in, so a crash
+    or a full disk in the middle of writing cannot leave half a file behind."""
+    tmp = CONFIG_PATH + ".tmp"
+    with _config_lock:                           # the menu and the update check both save
+        try:
+            text = json.dumps(cfg, ensure_ascii=False, indent=2)
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(text)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, CONFIG_PATH)
+        except (OSError, TypeError, ValueError, RuntimeError) as e:
+            log.warning("save_config: %s", e)
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 
 # ------------------------------------------------------------ status file
@@ -193,6 +249,27 @@ def _launch_command() -> str:
     return f'"{exe}" "{os.path.abspath(__file__)}"'
 
 
+def running_from_temp() -> bool:
+    """True when this copy runs from a temporary folder: opened straight from the
+    ZIP in Explorer or WinRAR, which unpack it into %TEMP% and delete it later.
+    "Start with Windows" must not point there - after the next reboot the entry
+    would lead nowhere."""
+    me = sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__)
+    me = os.path.normcase(os.path.abspath(me))
+    temps = {tempfile.gettempdir(), os.environ.get("TEMP", ""), os.environ.get("TMP", "")}
+    for d in temps:
+        if d:
+            d = os.path.normcase(os.path.abspath(d)).rstrip("\\/")
+            if me.startswith(d + os.sep):
+                return True
+    return False
+
+
+TEMP_AUTOSTART_TEXT = ("Halo Battery is running from a temporary folder (straight from the ZIP). "
+                       "Extract the ZIP to a folder of its own, run HaloBattery.exe from there, "
+                       "then turn on Start with Windows.")
+
+
 def autostart_enabled() -> bool:
     if sys.platform != "win32":
         return False
@@ -205,9 +282,14 @@ def autostart_enabled() -> bool:
         return False
 
 
-def set_autostart(on: bool) -> None:
+def set_autostart(on: bool) -> bool:
+    """Turn "Start with Windows" on or off. Returns False when it was not turned on
+    because this copy runs from a temporary folder."""
     if sys.platform != "win32":
-        return
+        return True
+    if on and running_from_temp():
+        log.warning("autostart: not set, running from a temporary folder (%s)", _launch_command())
+        return False
     import winreg
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
         if on:
@@ -217,11 +299,12 @@ def set_autostart(on: bool) -> None:
                 winreg.DeleteValue(k, APP_NAME)
             except OSError:
                 pass
+    return True
 
 
 def migrate_legacy_autostart() -> bool:
     """Replace the old "BatteryTray" autostart entry with the new name and path."""
-    if sys.platform != "win32":
+    if sys.platform != "win32" or running_from_temp():
         return False
     import winreg
     try:
@@ -242,8 +325,9 @@ def migrate_legacy_autostart() -> bool:
 def refresh_autostart() -> bool:
     """If "Start with Windows" is on but points at another copy of the app
     (e.g. the old single HaloBattery.exe after moving to the folder build),
-    point it at the copy that is running now. Only for the built .exe."""
-    if sys.platform != "win32" or not getattr(sys, "frozen", False):
+    point it at the copy that is running now. Only for the built .exe, and never
+    at a copy in a temporary folder."""
+    if sys.platform != "win32" or not getattr(sys, "frozen", False) or running_from_temp():
         return False
     import winreg
     try:
@@ -287,6 +371,115 @@ def fullscreen_app_running() -> bool:
     except (AttributeError, OSError):
         return False
     return state.value in QUNS_FULLSCREEN
+
+
+# ------------------------------------------------------------- tray icons
+ICON_HANDLE_CACHE = 64     # icon handles kept per tray icon (a charging cycle is 30 frames)
+IDLE_KEY = "HaloBattery:idle"   # the "no devices found" icon's id
+_tray_classes: Dict[type, type] = {}
+
+
+def icon_uid(key: str) -> int:
+    """A tray icon id that is the same on every start for the same device.
+
+    Windows remembers where the user put a tray icon (on the taskbar or in the
+    hidden-icons flyout) by the program's path and this id. pystray uses the
+    Python object's id, which changes on every start, so Windows saw new icons
+    each time and forgot their place (#38)."""
+    return zlib.crc32(key.encode("utf-8")) & 0x7FFFFFFF
+
+
+def _destroy_handles(cache: dict) -> None:
+    handles = [h for _img, h in cache.values()]
+    cache.clear()
+    if sys.platform == "win32":
+        import ctypes
+        for h in handles:
+            try:
+                ctypes.windll.user32.DestroyIcon(h)
+            except Exception:
+                pass
+
+
+def _make_tray_class(base: type) -> type:
+    class TrayIcon(base):
+        """pystray's icon with two changes, both in pystray's own private methods,
+        which are the same in pystray 0.19.0 - 0.19.5 (the Windows backend):
+
+        * the id Windows knows the icon by is icon_uid(key), not id(self);
+        * the icon handle of every image is kept. pystray writes each new image to a
+          temporary .ico file and loads it back, so the charging animation wrote
+          about ten files a second per charging device, which a disk and an
+          antivirus notice (#61). The 30 frames of a cycle are now loaded once."""
+
+        def _message(self, code, flags, **kwargs):
+            uid = getattr(self, "_hb_uid", None)
+            if uid is None or sys.platform != "win32":
+                return super()._message(code, flags, **kwargs)
+            import ctypes
+            from pystray._util import win32
+            win32.Shell_NotifyIcon(code, win32.NOTIFYICONDATAW(
+                cbSize=ctypes.sizeof(win32.NOTIFYICONDATAW),
+                hWnd=self._hwnd,
+                hID=uid,
+                uFlags=flags,
+                **kwargs))
+
+        def _assert_icon_handle(self):
+            cache = getattr(self, "_hb_handles", None)
+            if cache is None or self._icon_handle:
+                return super()._assert_icon_handle()
+            img = self.icon
+            hit = cache.get(id(img))
+            if hit is not None and hit[0] is img:     # the cache holds img, so its id is not reused
+                self._icon_handle = hit[1]
+                return None
+            super()._assert_icon_handle()
+            if self._icon_handle:
+                if len(cache) >= ICON_HANDLE_CACHE:
+                    _destroy_handles(cache)           # the handle just loaded is not among them
+                cache[id(img)] = (img, self._icon_handle)
+            return None
+
+        def _release_icon(self):
+            if getattr(self, "_hb_handles", None) is None:
+                return super()._release_icon()
+            self._icon_handle = None                  # the handle stays in the cache
+            return None
+
+        def forget_handles(self) -> None:
+            """Free the cached handles once the icon is gone."""
+            cache = getattr(self, "_hb_handles", None)
+            if cache:
+                _destroy_handles(cache)
+            self._icon_handle = None
+
+    return TrayIcon
+
+
+def _pystray_known() -> bool:
+    """True for the pystray versions whose private methods TrayIcon overrides (0.19.x).
+    A newer pystray gets its plain icon, which works as before 1.12.0."""
+    try:
+        from pystray import _info
+        return tuple(_info.__version__[:2]) == (0, 19)
+    except Exception:
+        return False
+
+
+def tray_icon(key: str, *args, **kwargs):
+    """A pystray icon with a stable id and cached icon handles (TrayIcon above).
+    The class is made from whatever pystray.Icon is at the time of the call."""
+    base = pystray.Icon
+    if sys.platform == "win32" and not _pystray_known():
+        return base(*args, **kwargs)
+    cls = _tray_classes.get(base)
+    if cls is None:
+        cls = _tray_classes[base] = _make_tray_class(base)
+    ic = cls(*args, **kwargs)
+    ic._hb_uid = icon_uid(key)
+    ic._hb_handles = {}
+    return ic
 
 
 # ------------------------------------------------------------ formatting
@@ -465,8 +658,9 @@ class DeviceIcon:
         self.frames: Optional[list] = None      # "breathing" frames while charging
         self._state = None                      # to avoid redrawing when nothing changed
         self._images: Dict[tuple, object] = {}  # state -> image or frames, both colours
-        self.icon = pystray.Icon(f"{APP_NAME}_{abs(hash(key))}",
-                                 icons.render(None, False, False, light_taskbar=app.light_taskbar), APP_TITLE, app.build_menu(self))
+        self.icon = tray_icon(key, f"{APP_NAME}_{abs(hash(key))}",
+                              icons.render(None, False, False, light_taskbar=app.light_taskbar),
+                              APP_TITLE, app.build_menu(self))
         # pystray calls the setup function once the icon's window exists. The app shows
         # the icon itself (in _update), after that, so a show is never lost.
         self.ready = threading.Event()
@@ -541,11 +735,15 @@ class DeviceIcon:
                     pass
 
     def stop(self) -> None:
-        self.frames = None
+        with self.app.lock:
+            self.frames = None                  # the animation stops touching the icon
         try:
             self.icon.stop()
         except Exception:
             pass
+        forget = getattr(self.icon, "forget_handles", None)
+        if forget is not None:
+            forget()                            # free the cached icon handles
 
 
 class App:
@@ -633,7 +831,8 @@ class App:
 
         def toggle_autostart(icon, item):
             try:
-                set_autostart(not autostart_enabled())
+                if not set_autostart(not autostart_enabled()):
+                    icon.notify(TEMP_AUTOSTART_TEXT, "Start with Windows")
             except OSError as e:
                 log.warning("autostart: %s", e)
 
@@ -1204,10 +1403,10 @@ class App:
             if not show:
                 return
             ready = threading.Event()
-            self.placeholder = pystray.Icon(f"{APP_NAME}_idle",
-                                            icons.render(None, False, False, light_taskbar=self.light_taskbar),
-                                            f"{APP_TITLE}: no devices found",
-                                            self.build_menu(None))
+            self.placeholder = tray_icon(IDLE_KEY, f"{APP_NAME}_idle",
+                                         icons.render(None, False, False, light_taskbar=self.light_taskbar),
+                                         f"{APP_TITLE}: no devices found",
+                                         self.build_menu(None))
             self.placeholder_ready = ready
             threading.Thread(target=self.placeholder.run, args=(lambda icon: ready.set(),),
                              daemon=True).start()

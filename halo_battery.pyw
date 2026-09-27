@@ -880,7 +880,8 @@ class App:
             for name, label in sorted(PROVIDER_LABELS.items(), key=lambda kv: kv[1].lower()):
                 yield Item(label, flip_provider(name), checked=provider_on(name))
                 if name == "playstation":
-                    yield Item("    PlayStation over Bluetooth", toggle("playstation_bluetooth"),
+                    # right under "PlayStation controllers", and greyed out while that is off
+                    yield Item("PlayStation over Bluetooth", toggle("playstation_bluetooth"),
                                checked=lambda it: self.cfg.get("playstation_bluetooth", True),
                                enabled=provider_on("playstation"))
 

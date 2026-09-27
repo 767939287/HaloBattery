@@ -60,9 +60,9 @@ import icons  # noqa: E402
 import updates  # noqa: E402
 import winevents  # noqa: E402
 from providers import hidlist  # noqa: E402
-from providers import (AudezeProvider, BluetoothProvider, DeviceStatus, JblProvider, HyperXProvider,  # noqa: E402
-                       LogitechProvider, MchoseProvider, PlayStationProvider, RazerProvider,
-                       SteelSeriesProvider, WLmouseProvider, XInputProvider)
+from providers import (AudezeProvider, BarracudaProvider, BluetoothProvider, DeviceStatus,  # noqa: E402
+                       HyperXProvider, JblProvider, LogitechProvider, MchoseProvider, PlayStationProvider,
+                       RazerProvider, SteelSeriesProvider, WLmouseProvider, XInputProvider)
 from providers.bluetooth import BluetoothWatcher  # noqa: E402
 
 HEADSET_WORDS = ("blackshark", "kraken", "barracuda", "nari", "thresher", "headset",
@@ -207,7 +207,7 @@ def single_instance() -> bool:
 
 # ------------------------------------------------------------ formatting
 def badge_for(st: DeviceStatus) -> str:
-    if st.kind in ("headset", "mouse", "gamepad"):     # reported by the device itself
+    if st.kind in ("headset", "mouse", "gamepad", "keyboard"):   # reported by the device itself
         return st.kind
     n = st.name.lower()
     if any(w in n for w in HEADSET_WORDS):
@@ -231,10 +231,27 @@ def dedupe_controllers(results: List[DeviceStatus], bt: List[DeviceStatus]) -> L
     bt_pads = [s for s in bt if s.kind == "gamepad" or any(w in s.name.lower() for w in GAMEPAD_WORDS)]
     if not bt_pads:
         return results
-    out = [s for s in results if not (s.source == "xinput" and s.via == "bluetooth")]
+    families = {f for f in (device_family(s.name) for s in bt_pads) if f}
+    out: List[DeviceStatus] = []
     for s in results:
-        if s not in out:
+        if s.source != "xinput":
+            out.append(s)
+            continue
+        if s.via == "bluetooth":
             log.info("[XInput] %s is connected over Bluetooth and shown as a Bluetooth device", s.name)
+            continue
+        # The provider only knows the transport when the device paths say so, and they do not
+        # always: an Xbox Wireless Controller over Bluetooth can come back without the service
+        # guid in its path, and Windows.Gaming.Input's unusable report for it (remain=100
+        # against full=1000, i.e. 10%) then sat next to the correct Bluetooth value as a second
+        # icon. A Bluetooth gamepad of the same device family is the same device. Compared
+        # exactly, not as a substring, so the "Xbox controller 1"/"Xbox controller 2" names of
+        # two controllers cannot collapse into one icon.
+        fam = device_family(s.name)
+        if fam and fam in families:
+            log.info("[XInput] %s: the Bluetooth reading of the same controller is shown instead", s.name)
+            continue
+        out.append(s)
     return out
 
 
@@ -279,8 +296,13 @@ def drop_bluetooth_duplicates(results: List[DeviceStatus],
     for st in results:
         if st.key.startswith("bt:") or st.source == "bluetooth":
             fam = device_family(st.name)
+            # both sides need a name long enough to be a device rather than a fragment:
+            # a short HID family ("razer", "g pro") used to match inside an unrelated
+            # longer Bluetooth name ("razer barracuda pro", "logitech g pro x") and
+            # drop that device's icon
             duplicate = bool(fam) and any(
-                fam == h or (len(fam) >= 6 and (fam in h or h in fam)) for h in hid)
+                fam == h or (min(len(fam), len(h)) >= 6 and (fam in h or h in fam))
+                for h in hid)
             if duplicate:
                 if st.key not in logged:
                     logged.add(st.key)
@@ -393,7 +415,7 @@ class App:
         self.light_taskbar = self.compute_light()
         self.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
                           HyperXProvider(), JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
-                          PlayStationProvider()]
+                          PlayStationProvider(), BarracudaProvider()]
         self.bt = BluetoothProvider()
         self.icons: Dict[str, DeviceIcon] = {}
         self.placeholder: Optional[pystray.Icon] = None
@@ -958,7 +980,7 @@ def probe():
     app.cfg = load_config()
     app.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
                      HyperXProvider(), JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
-                     PlayStationProvider()]
+                     PlayStationProvider(), BarracudaProvider()]
     app.bt = BluetoothProvider()
     res = []
     for p in app.providers + [app.bt]:
@@ -968,8 +990,11 @@ def probe():
     for s in res:
         print(describe(s))
     if not res:
-        print("Nothing found. All HID devices:")
-        print("\n".join(dump_hid()))
+        print("Nothing found.")
+    # always list every HID device: the case worth dumping is a device that did
+    # not answer while others did, and that never reaches the branch above
+    print("\nAll HID devices:")
+    print("\n".join(dump_hid()))
 
 
 def main():

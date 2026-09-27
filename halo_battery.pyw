@@ -207,7 +207,7 @@ def single_instance() -> bool:
 
 # ------------------------------------------------------------ formatting
 def badge_for(st: DeviceStatus) -> str:
-    if st.kind in ("headset", "mouse", "gamepad"):     # reported by the device itself
+    if st.kind in ("headset", "mouse", "gamepad", "keyboard"):   # reported by the device itself
         return st.kind
     n = st.name.lower()
     if any(w in n for w in HEADSET_WORDS):
@@ -296,8 +296,13 @@ def drop_bluetooth_duplicates(results: List[DeviceStatus],
     for st in results:
         if st.key.startswith("bt:") or st.source == "bluetooth":
             fam = device_family(st.name)
+            # both sides need a name long enough to be a device rather than a fragment:
+            # a short HID family ("razer", "g pro") used to match inside an unrelated
+            # longer Bluetooth name ("razer barracuda pro", "logitech g pro x") and
+            # drop that device's icon
             duplicate = bool(fam) and any(
-                fam == h or (len(fam) >= 6 and (fam in h or h in fam)) for h in hid)
+                fam == h or (min(len(fam), len(h)) >= 6 and (fam in h or h in fam))
+                for h in hid)
             if duplicate:
                 if st.key not in logged:
                     logged.add(st.key)

@@ -7,6 +7,18 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **Keyboards were drawn with a mouse pictogram.** Both providers report
+  `kind="keyboard"` for the keyboards they support (Logitech HID++ over a receiver, and
+  anything Bluetooth whose class says keyboard), but the badge list did not know the
+  kind: a Logitech keyboard fell through to the mouse badge, and a Bluetooth one to the
+  Bluetooth badge. There is a keyboard pictogram now, wide and low enough to read
+  against the mouse at 16 px.
+- **A short device name could hide an unrelated Bluetooth device.** The duplicate check
+  accepted a match whenever the Bluetooth name was at least six characters and contained
+  the HID name (or vice versa), without looking at the second name's length, so an HID
+  device named "Razer" dropped a Bluetooth "Razer Barracuda Pro" and an HID "G Pro"
+  dropped a "Logitech G Pro X Wireless". Both names now have to be at least six
+  characters for a substring match; identical names still match as before.
 - A wired Xbox-compatible controller could show **5%** while on the cable: `BatteryLevel`
   is documented as valid only for wireless devices, and a wired pad's byte is whatever the
   driver left in the field, so it is no longer read as a level (the last wireless reading

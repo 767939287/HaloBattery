@@ -35,6 +35,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
   the receiver read the mouse's level, and on the cable the level matched ATK's own panel
   (hub.atk.pro) with the charging flag following the cable in both directions. Reported by
   huyxs2005.
+- Lofree Hyzen keyboards on their 2.4 GHz dongle (`388D:0025`, #82), with the battery query of Lofree's
+  own web driver (command `1A` in its report 0x04 transaction). **Unverified** - no Lofree keyboard was on
+  hand. `tests/test_lofree.py` uses the collections from the #82 report.
 - SteelSeries: older and other Arctis headsets. Not tested on these headsets; the raw
   replies go to the diagnostics.
   - On the `b0` exchange (interface 3): Arctis Nova 7P, Nova 3P / 3X Wireless,

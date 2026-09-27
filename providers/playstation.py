@@ -115,6 +115,11 @@ class PlayStationProvider(Provider):
         self._diag: List[str] = []
         self.pending = False        # a controller is connected but has not reported battery yet
         self._pending_since: Dict[str, float] = {}   # key -> when its reading first went missing
+        # False: a controller connected over Bluetooth is left alone. Reading its battery
+        # means switching it into the full report mode (the feature report above), and
+        # some games and launchers stop seeing a controller in that mode until it is
+        # switched off and on again (issue #96). Set from Preferences > Device types.
+        self.read_bluetooth = True
 
     # ---- low level -------------------------------------------------------
     @staticmethod
@@ -215,6 +220,9 @@ class PlayStationProvider(Provider):
             bluetooth = self._is_bluetooth(ifaces[0]["path"])
             self._diag.append(f"[PlayStation] {name} pid={pid:04x} "
                               f"{'Bluetooth' if bluetooth else 'USB'} interfaces={len(ifaces)} '{product}'")
+            if bluetooth and not self.read_bluetooth:
+                self._diag.append("  not read: PlayStation over Bluetooth is turned off in Preferences")
+                continue
             res = None
             ordered = sorted(ifaces, key=_battery_first)
             budget_end = time.time() + BUDGET

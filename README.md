@@ -89,11 +89,14 @@ Right-click a device icon:
 
 - **Rename…**: give the device your own name (for example, two controllers with the same name). **Reset name** goes back to the device's own name.
 - **Icon**: pick the pictogram of this device (Automatic, Mouse, Keyboard, Headset, Controller or Bluetooth), for example a controller over Bluetooth that shows the Bluetooth pictogram.
+- **Low battery alert at**: an alert level for this device only (off, 10–30%), or **Default** to follow Preferences. The red ring follows it too.
 - **Hide this device**: remove its icon, for example for a controller that always reports 100%.
 - **Refresh now**
 - **Preferences**:
   - **Poll interval** (15 s to 5 min), **Low battery alert at** (off, 10–30%), **Alert when fully charged** (a notification once per charge, on by default)
+  - **Estimated time left**: "about 5 h of use left" in the tooltip, from how fast the device has drained since its last charge. Only time the device is awake and on battery counts, and there is no estimate until it has been used for 30 minutes and dropped 3%. The history is kept in `%APPDATA%\HaloBattery\history.json`.
   - **Windows Bluetooth devices**, **Device pictogram**, **Charging animation**
+  - **Device types**: turn off a brand or device family; its devices are then not opened at all. **PlayStation over Bluetooth** can be turned off on its own: reading the battery over Bluetooth switches the controller into its full report mode, and some games do not see a controller in that mode until it is switched off and on (#96). Over USB it is still read.
   - **Icon colour**: Automatic (the Windows theme, or MyDockFinder's menu bar while it is running), White or Black
   - **Start with Windows** (per-user registry key, no admin rights needed)
   - **Check for updates**: once a day, on by default; a notification and a **Download vX.Y.Z…** item appear when a new release is out

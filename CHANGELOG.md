@@ -7,6 +7,19 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Device types** in Preferences: turn off any brand or device family (Razer, Logitech,
+  PlayStation controllers, ...). A type that is off is not polled and its devices are not
+  opened; its icons go away at once. **PlayStation over Bluetooth** is a switch of its own
+  for #96: reading a DualSense or DualShock 4 over Bluetooth switches it into the full
+  report mode, which some games do not see until the controller is switched off and on.
+  Over USB it is still read.
+- **Low battery alert at** in the menu of a device: an alert level for that device only,
+  or Default to follow Preferences. The red ring of the icon follows it too.
+- **Estimated time left** in the tooltip ("about 5 h of use left"), from a least-squares
+  fit of the level against the time the device was awake and on battery since its last
+  charge. Time asleep, switched off or with the PC suspended does not count. No estimate
+  until 30 minutes of use and a 3% drop; kept in `%APPDATA%\HaloBattery\history.json`
+  so it survives a restart. Can be turned off in Preferences.
 - **Fully charged**: a notification when a charging device reaches 100%, once per charge
   (a 99/100% wobble on the charger does not repeat it). "Alert when fully charged" in
   Preferences turns it off.

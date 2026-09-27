@@ -91,6 +91,8 @@ def make_app(cfg=None):
     app.light_taskbar = False
     app.update = None
     app.notes = []
+    app.key_provider = {}
+    app.history = hb.history.History()      # in memory: no path, never written
     return app
 
 
@@ -247,7 +249,8 @@ class MenuLayoutTests(HideRenameTestCase):
         app.apply([dev()])
         texts = [i.text for i in app.build_menu(app.icons["logitech:C15E09CD"]).items
                  if i.visible and i is not hb.Menu.SEPARATOR]
-        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Icon", "Hide this device",
+        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Icon", "Low battery alert at",
+                                 "Hide this device",
                                  "Refresh now", "Preferences", "Diagnostics…",
                                  f"Exit (v{hb.VERSION})"])
 
@@ -256,7 +259,8 @@ class MenuLayoutTests(HideRenameTestCase):
         app.apply([dev()])
         texts = [i.text for i in app.build_menu(app.icons["logitech:C15E09CD"]).items
                  if i.visible and i is not hb.Menu.SEPARATOR]
-        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Icon", "Hide this device",
+        self.assertEqual(texts, ["G502 LIGHTSPEED: 76%", "Rename…", "Icon", "Low battery alert at",
+                                 "Hide this device",
                                  "Refresh now", "Preferences", "Hidden devices",
                                  "Diagnostics…", f"Exit (v{hb.VERSION})"])
 
@@ -266,7 +270,8 @@ class MenuLayoutTests(HideRenameTestCase):
         prefs = next(i for i in menu.items if i.text == "Preferences").submenu
         texts = [i.text for i in prefs.items if i is not hb.Menu.SEPARATOR]
         self.assertEqual(texts, ["Poll interval", "Low battery alert at", "Alert when fully charged",
-                                 "Windows Bluetooth devices", "Device pictogram", "Charging animation", "Icon colour",
+                                 "Estimated time left", "Windows Bluetooth devices", "Device types",
+                                 "Device pictogram", "Charging animation", "Icon colour",
                                  "Start with Windows", "Check for updates"])
 
 

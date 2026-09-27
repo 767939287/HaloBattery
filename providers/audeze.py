@@ -215,6 +215,25 @@ def newest_level(frames) -> Optional[int]:
     return None
 
 
+# A stuck dongle: it answers every packet, but each answer is only the first bytes of the
+# request echoed back (07 00 80 00 00 ... - 07 00 00 00 ... for the one request with 00
+# there) with nothing after them, so the requests never reach the headset. Seen on an
+# Xbox dongle (3329:4B18) that said "Audeze Maxwell HID" (headset linked), in PC mode,
+# with the headset on and playing audio: 22 of 22 replies were echoes, over several
+# polls. Unplugging the dongle and plugging it back in made it answer with the battery
+# at once. HeadsetControl #460 (the same dongle, "battery unavailable" on Windows and
+# Linux) may well be the same state.
+ECHO_MIN_FRAMES = 5      # fewer replies than this is too little to call it
+STUCK_POLLS = 2          # polls in a row before the icon says so (not a dongle just waking up)
+STUCK_TEXT = "no answer from the headset - unplug the dongle and plug it back in"
+
+
+def echo_only(frames) -> bool:
+    """True when every reply is an empty echo of the request header."""
+    return len(frames) >= ECHO_MIN_FRAMES and all(
+        len(f) > 3 and f[0] == REPORT_ID_IN and not any(f[3:]) for f in frames)
+
+
 def is_vendor_interface(d: dict) -> bool:
     return d.get("usage_page") == VENDOR_USAGE_PAGE and d.get("usage", 0) == VENDOR_USAGE
 
@@ -242,6 +261,9 @@ class AudezeProvider(Provider):
         # (pid, serial) -> the single battery packet came back without a marker last
         # time, so send only the full sequence until something answers again
         self._short_useless: Dict[Tuple[int, str], bool] = {}
+        # (pid, serial) -> polls in a row whose replies were all empty echoes (stuck dongle)
+        self._echo_polls: Dict[Tuple[int, str], int] = {}
+        self._last_echo_only = False     # set by _read_battery for the read it just did
 
     # ---- low level -------------------------------------------------------
     def _read_frame(self, dev) -> Optional[bytes]:
@@ -286,6 +308,7 @@ class AudezeProvider(Provider):
                       state_key=None) -> Tuple[Optional[int], Optional[bool]]:
         """-> (level%, charging). charging is always False: the Maxwell does not
         report a charging flag in the status the dongle exposes."""
+        self._last_echo_only = False
         dev = hid.device()
         try:
             dev.open_path(path)
@@ -322,6 +345,11 @@ class AudezeProvider(Provider):
             if level is None:
                 self._diag.append(f"    no battery marker in {len(frames)} frames"
                                   + (f", last: {hexdump(frames[-1])}" if frames else ""))
+                self._last_echo_only = echo_only(frames)
+                if self._last_echo_only:
+                    self._diag.append("    every reply is an empty echo of the request: the "
+                                      "dongle is not passing the requests to the headset. "
+                                      "Unplugging the dongle and plugging it back in fixes this")
                 return None, None
             return level, False
         finally:
@@ -367,6 +395,7 @@ class AudezeProvider(Provider):
         order = sorted(groups.items(),
                        key=lambda kv: (kv[0][0] not in CABLE_PIDS, kv[0][0], kv[0][1]))
         out: List[DeviceStatus] = []
+        stuck: Optional[DeviceStatus] = None
         for (pid, serial), ifaces in order:
             name = KNOWN.get(pid) or (ifaces[0].get("product_string") or f"Audeze {pid:04x}").strip()
             diag_from = len(self._diag)
@@ -401,6 +430,7 @@ class AudezeProvider(Provider):
                                         "audeze", kind="headset"))
                 continue
             level = None
+            echoed = False
             if off:
                 self._diag.append("    the dongle reports no headset linked "
                                   "(switched off), skipping the read")
@@ -412,6 +442,18 @@ class AudezeProvider(Provider):
                     level, _ = self._read_battery(d["path"], (pid, serial))
                     if level is not None:
                         break
+                    echoed = echoed or self._last_echo_only
+            # A stuck dongle (see STUCK_TEXT) looks like a switched-off headset - no icon -
+            # although the headset is on and the fix is one replug. After STUCK_POLLS polls
+            # in a row it gets a greyed icon that says so, under the headset's own key, so
+            # the normal icon takes over in place once the dongle answers again. Only a
+            # dongle that says a headset is linked gets here ("off" above skips the read).
+            n = self._echo_polls[(pid, serial)] = (
+                self._echo_polls.get((pid, serial), 0) + 1 if level is None and echoed else 0)
+            if n >= STUCK_POLLS and stuck is None:
+                self._diag.append(f"    stuck for {n} polls in a row: showing \"{STUCK_TEXT}\"")
+                stuck = DeviceStatus(f"audeze:{serial}", HEADSET_NAME, None, False, True,
+                                     "audeze", STUCK_TEXT, kind="headset")
             if level is None:
                 # A switched-off headset is a routine state, not a fault. Log the
                 # outage once per headset and stay quiet until it answers again:
@@ -440,6 +482,8 @@ class AudezeProvider(Provider):
                                     level, pid in CABLE_PIDS, True, "audeze",
                                     kind="headset"))
             break
+        if not out and stuck is not None:
+            out.append(stuck)
         return out
 
     def diagnostics(self) -> List[str]:

@@ -31,6 +31,12 @@ and the project follows [Semantic Versioning](https://semver.org/).
   `%APPDATA%\HaloBattery\status.json`, rewritten after every poll (atomically), with each
   device's name, level, charging, online, kind, alert level, seconds of use left and
   tooltip text, for Rainmeter, Stream Deck or scripts.
+- Audeze Maxwell: a **stuck dongle** is recognised. An Xbox dongle (`3329:4B18`) that said a
+  headset was linked, in PC mode with the headset on and playing audio, answered every
+  packet with an empty echo of the request (`07 00 80 00 ...`), so no battery ever arrived
+  and there was no icon; unplugging the dongle and plugging it back in fixed it at once.
+  After two such polls in a row the headset now gets a greyed icon that says to replug the
+  dongle, and the diagnostics say what was seen. This may be HeadsetControl #460.
 - **Fully charged**: a notification when a charging device reaches 100%, once per charge
   (a 99/100% wobble on the charger does not repeat it). "Alert when fully charged" in
   Preferences turns it off.

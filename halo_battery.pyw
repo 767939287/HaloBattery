@@ -360,6 +360,12 @@ def ask_name(current: str) -> Optional[str]:
 
 
 # ------------------------------------------------------------- application
+# how long to wait for a tray icon's own thread to create its window. pystray makes
+# the window in that thread; until then, showing, hiding or stopping the icon has no
+# effect (stop() is ignored, and a show is lost).
+ICON_READY_TIMEOUT = 5.0
+
+
 class DeviceIcon:
     """A separate tray icon for one device."""
 
@@ -372,7 +378,11 @@ class DeviceIcon:
         self._images: Dict[tuple, object] = {}  # state -> image or frames, both colours
         self.icon = pystray.Icon(f"{APP_NAME}_{abs(hash(key))}",
                                  icons.render(None, False, False, light_taskbar=app.light_taskbar), APP_TITLE, app.build_menu(self))
-        self.thread = threading.Thread(target=self.icon.run, daemon=True)
+        # pystray calls the setup function once the icon's window exists. The app shows
+        # the icon itself (in _update), after that, so a show is never lost.
+        self.ready = threading.Event()
+        self.thread = threading.Thread(target=self.icon.run, args=(lambda icon: self.ready.set(),),
+                                       daemon=True)
         self.thread.start()
 
     def update(self, st: DeviceStatus) -> None:
@@ -406,7 +416,8 @@ class DeviceIcon:
                 self.icon.update_menu()
             except Exception:
                 pass
-        if not self.icon.visible:
+        ready = getattr(self, "ready", None)
+        if not self.icon.visible and (ready is None or ready.wait(ICON_READY_TIMEOUT)):
             try:
                 self.icon.visible = True
             except Exception:
@@ -883,7 +894,6 @@ class App:
             if ic is None:
                 ic = DeviceIcon(self, st.key)
                 self.icons[st.key] = ic
-                time.sleep(0.3)   # let the icon register
             ic.update(st)
             self.check_alert(ic, st)
 
@@ -903,15 +913,35 @@ class App:
                     # 3-second re-check in wait_next() would go on forever
                     self.missing.pop(key, None)
 
-        if self.icons and self.placeholder:
-            self.placeholder.stop()
-            self.placeholder = None
-        elif not self.icons and not self.placeholder:
+        self.show_placeholder(not self.icons)
+
+    def show_placeholder(self, show: bool) -> None:
+        """The "no devices" icon. It is made once and after that only shown or hidden.
+
+        Stopping it and making a new one each time a device came or went could leave
+        a copy in the tray: pystray ignores stop() until the icon's thread has made
+        its window, and its default setup can show the icon again after stop() (#38,
+        #95). Showing and hiding one icon, after its window exists, has neither problem.
+        """
+        if self.placeholder is None:
+            if not show:
+                return
+            ready = threading.Event()
             self.placeholder = pystray.Icon(f"{APP_NAME}_idle",
                                             icons.render(None, False, False, light_taskbar=self.light_taskbar),
                                             f"{APP_TITLE}: no devices found",
                                             self.build_menu(None))
-            threading.Thread(target=self.placeholder.run, daemon=True).start()
+            self.placeholder_ready = ready
+            threading.Thread(target=self.placeholder.run, args=(lambda icon: ready.set(),),
+                             daemon=True).start()
+        if not self.placeholder_ready.wait(ICON_READY_TIMEOUT):
+            log.warning("tray: the \"no devices\" icon did not start in %.0f s", ICON_READY_TIMEOUT)
+            return
+        if bool(self.placeholder.visible) != show:
+            try:
+                self.placeholder.visible = show
+            except Exception as e:
+                log.warning("tray: %s", e)
 
     def check_alert(self, ic: DeviceIcon, st: DeviceStatus):
         low = self.cfg["low"]

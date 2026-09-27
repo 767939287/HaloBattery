@@ -31,6 +31,20 @@ and the project follows [Semantic Versioning](https://semver.org/).
     connection query from the Linux driver `hid-steelseries-arctis.c`. A reply that
     does not answer the request is never read as a level. Only vendor collections get
     a request. The Arctis Pro GameDAC is left out, because it is a wired headset.
+- SteelSeries Arctis Nova Pro Wireless (base stations `1038:12E0` and `1038:12E5` X),
+  ported from HeadsetControl's `steelseries_arctis_nova_pro_wireless.hpp`: the same `b0`
+  exchange as the other Nova headsets, asked for with report id `06` - on interface 4 as
+  HeadsetControl asks, and interface 3 too. The request reaches only a vendor collection
+  of those two product ids. The level is a nine-step code in byte 6 and the state in byte
+  15 (`01` off / out of range, `02` cable charging, `08` on battery), so nine steps are
+  shown as "about NN%", `01` gives no reading at all instead of 0 %, and any other state
+  byte, a level code above 8 or a reply shorter than 16 bytes is refused rather than
+  shown. Covered by the Nova Pro cases in `tests/test_steelseries.py`. The interface and the
+  collection are confirmed by the diagnostics in
+  [#41](https://github.com/HeyOkay/HaloBattery/issues/41) (`1038:12e5` exposes `ffc0:0001`
+  on interface 4, with a second vendor collection `ff00:0001` on the same interface, so
+  both are tried and the one that answers is remembered). **Unverified**: the reply
+  layout - the nine steps and the state bytes - is HeadsetControl's, not yet seen here.
 
 ### Fixed
 - Tray: an extra "No devices found" icon could stay next to a device icon, for example

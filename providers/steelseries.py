@@ -30,16 +30,29 @@ Mouse battery (Rival 3 Wireless and family), from yurtemre7/steel-mouse:
     shown, and the raw reply is logged, so a probe settles the layout
   * SteelSeries GG reads the same collection, so both can run side by side
 
+Nova Pro Wireless base stations (1038:12E0, and the X station at 1038:12E5), from the
+same HeadsetControl source:
+  * the b0 exchange once more, but asked for with report id 06 (06 b0), and HeadsetControl
+    reads it on interface 4 - so interface 3 and interface 4 are both accepted for these
+    two ids
+  * reply: a nine-step level code in byte 6 (map(code, 0, 8, 0, 100) = 0, 12, 25, 37, 50,
+    62, 75, 87, 100) and the headset state in byte 15: 01 = headset off / out of range,
+    02 = charging on the cable, 08 = on battery. The reply does not echo the request, so
+    only those three state bytes are accepted - anything else is not the battery answer -
+    and a reply shorter than 16 bytes or a level code above 8 is refused rather than shown
+  * nine steps are not a percentage, so the tray shows "about NN%" for these
+
 Older Arctis headsets (Arctis 1, 7, 9, Pro Wireless) use other requests on other
 interfaces: see CLASSIC_MODELS further down.
 
 New models go into MODELS (headsets on the b0 exchange), MOUSE_MODELS (mice) or
-CLASSIC_MODELS (older headsets): product id -> (name, parser ...).
+CLASSIC_MODELS (headsets with a request of their own - the older Arctis and the Nova Pro
+Wireless base stations): product id -> (name, parser ...).
 """
 from __future__ import annotations
 
 import time
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import hid
 
@@ -239,10 +252,37 @@ def exchange_pro_wireless(ask: Ask) -> Reading:
     return r[0] * 25, False, True
 
 
-# product id -> (name, interface, usage page or None, exchange). Only the vendor
-# collections (usage page 0xFF00 and above) of that interface ever get a request.
-# The Arctis Pro GameDAC (1280) is left out: it is a wired headset with no battery.
-CLASSIC_MODELS: Dict[int, Tuple[str, int, Optional[int], Callable[[Ask], Reading]]] = {
+# Nova Pro Wireless base stations: the b0 exchange again, but with report id 06, and
+# HeadsetControl asks for it on interface 4 while the Nova 7 / Nova 5 dongles answer on
+# interface 3. The level is a nine-step code and the state byte is the gate.
+NOVA_PRO_REQUEST = [0x06, 0xB0]
+NOVA_PRO_OFF = 0x01                  # headset off / out of range
+NOVA_PRO_CHARGING = 0x02             # charging on the cable
+NOVA_PRO_ONLINE = 0x08               # on battery
+NOVA_PRO_STATES = (NOVA_PRO_OFF, NOVA_PRO_CHARGING, NOVA_PRO_ONLINE)
+NOVA_PRO_INTERFACES = (3, 4)
+COARSE_MODELS = frozenset({0x12E0, 0x12E5})   # nine-step level, so shown as "about NN%"
+
+
+def exchange_nova_pro(ask: Ask) -> Reading:
+    """06 b0 -> nine-step level in byte 6, headset state in byte 15.
+
+    The reply does not echo the request, so only the three documented state bytes are
+    accepted: a report carrying anything else is not the battery answer, which is what
+    keeps a stray report on the collection from reading as a level. 01 is the headset
+    reporting itself off or out of range, so it gives no reading at all rather than 0 %.
+    """
+    r = ask(NOVA_PRO_REQUEST, lambda r: len(r) >= 16 and r[15] in NOVA_PRO_STATES)
+    if r is None or r[15] == NOVA_PRO_OFF or not 0 <= r[6] <= 8:
+        return None, False, False
+    return r[6] * 100 // 8, r[15] == NOVA_PRO_CHARGING, True
+
+# product id -> (name, interface, usage page or None, exchange). The interface may be a
+# tuple for a model that answers on more than one (the Nova Pro Wireless stations).
+# Only the vendor collections (usage page 0xFF00 and above) of that interface ever get
+# a request. The Arctis Pro GameDAC (1280) is left out: a wired headset, no battery.
+Interfaces = Union[int, Tuple[int, ...]]
+CLASSIC_MODELS: Dict[int, Tuple[str, Interfaces, Optional[int], Callable[[Ask], Reading]]] = {
     0x12B3: ("Arctis 1 Wireless", 3, 0xFF43, exchange_arctis1),
     0x12B6: ("Arctis 1 Wireless Xbox", 3, 0xFF43, exchange_arctis1),
     0x12D7: ("Arctis 7X", 3, 0xFF43, exchange_arctis1),
@@ -252,6 +292,8 @@ CLASSIC_MODELS: Dict[int, Tuple[str, int, Optional[int], Callable[[Ask], Reading
     0x1252: ("Arctis Pro Wireless 2019", 5, None, exchange_arctis7),
     0x12C2: ("Arctis 9", 0, None, exchange_arctis9),
     0x1290: ("Arctis Pro Wireless", 0, None, exchange_pro_wireless),
+    0x12E0: ("Arctis Nova Pro Wireless", NOVA_PRO_INTERFACES, None, exchange_nova_pro),
+    0x12E5: ("Arctis Nova Pro Wireless X", NOVA_PRO_INTERFACES, None, exchange_nova_pro),
 }
 
 
@@ -434,8 +476,9 @@ class SteelSeriesProvider(Provider):
     def _poll_classic(self, infos: List[dict]) -> List[DeviceStatus]:
         out = []
         for pid, (name, iface, page, exchange) in CLASSIC_MODELS.items():
+            ifaces = iface if isinstance(iface, tuple) else (iface,)
             paths = [d["path"] for d in infos
-                     if d["product_id"] == pid and d.get("interface_number") == iface
+                     if d["product_id"] == pid and d.get("interface_number") in ifaces
                      and (d.get("usage_page") == page if page
                           else (d.get("usage_page") or 0) >= 0xFF00)]
             if not paths:
@@ -448,8 +491,9 @@ class SteelSeriesProvider(Provider):
                 if answered:
                     self._classic_path[pid] = path
                     if online and level is not None:
+                        approx = f"about {level}%" if pid in COARSE_MODELS else ""
                         out.append(DeviceStatus(f"steelseries:{pid:04x}", name, level, chg, True,
-                                                "steelseries", kind="headset"))
+                                                "steelseries", approx=approx, kind="headset"))
                     else:
                         self._diag.append("  the headset is off or out of range")
                     break

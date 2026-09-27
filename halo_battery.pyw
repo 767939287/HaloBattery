@@ -63,8 +63,8 @@ import winevents  # noqa: E402
 from providers import hidlist  # noqa: E402
 from providers import (AudezeProvider, BarracudaProvider, BluetoothProvider,  # noqa: E402
                        DeviceStatus, HyperXProvider, JblProvider, KeychronProvider,
-                       LogitechProvider, MchoseProvider, PlayStationProvider, RazerProvider,
-                       SteelSeriesProvider, WLmouseProvider, XInputProvider)
+                       LogitechProvider, MchoseProvider, PlayStationProvider, PulsarProvider,
+                       RazerProvider, SteelSeriesProvider, WLmouseProvider, XInputProvider)
 from providers.bluetooth import BluetoothWatcher  # noqa: E402
 
 HEADSET_WORDS = ("blackshark", "kraken", "barracuda", "nari", "thresher", "headset",
@@ -451,8 +451,9 @@ class App:
         self.win_events: Optional[winevents.WindowEventWatcher] = None
         self.light_taskbar = self.compute_light()
         self.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
-                          HyperXProvider(), KeychronProvider(), JblProvider(), LogitechProvider(),
-                          SteelSeriesProvider(), XInputProvider(), PlayStationProvider(), BarracudaProvider()]
+                          HyperXProvider(), KeychronProvider(), PulsarProvider(), JblProvider(),
+                          LogitechProvider(), SteelSeriesProvider(), XInputProvider(), PlayStationProvider(),
+                          BarracudaProvider()]
         self.bt = BluetoothProvider()
         self.icons: Dict[str, DeviceIcon] = {}
         self.placeholder: Optional[pystray.Icon] = None
@@ -1129,8 +1130,8 @@ def probe():
     app = App.__new__(App)
     app.cfg = load_config()
     app.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(), HyperXProvider(),
-                     KeychronProvider(), JblProvider(), LogitechProvider(), SteelSeriesProvider(),
-                     XInputProvider(), PlayStationProvider(), BarracudaProvider()]
+                     KeychronProvider(), PulsarProvider(), JblProvider(), LogitechProvider(),
+                     SteelSeriesProvider(), XInputProvider(), PlayStationProvider(), BarracudaProvider()]
     app.bt = BluetoothProvider()
     res = []
     for p in app.providers + [app.bt]:

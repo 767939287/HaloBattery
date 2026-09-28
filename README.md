@@ -64,7 +64,6 @@ Support for other devices is not guaranteed. New devices are added based on feed
 logs: if yours is not detected or shows a wrong level, open an issue and attach the diagnostics
 report - see **Troubleshooting** below.
 
-Two limitations of the Maxwell support are worth stating rather than leaving to be discovered. Two Maxwells on one machine share a single icon: both endpoints report the serial `0000000000000000`, so nothing distinguishes them over HID and only the first one is read. And the Xbox cable PID (`3329:4B1E`) is derived from the Xbox dongle (`3329:4B18`) by the same +1 offset that separates the PC dongle `3329:4B19` from its cable `3329:4B1A` — it has not been measured against an Xbox model, so an Xbox cable may be read as `3329:4B18` and shown as not charging.
 
 ## Installation
 

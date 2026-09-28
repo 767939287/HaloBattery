@@ -26,6 +26,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
   a game has already switched the controller, and the icon shows no level otherwise.
   **Preferences > PlayStation full mode (Bluetooth)** brings the old behaviour back for
   those who do not play such games. USB is unchanged.
+- **Hide this device** clicked while the app was reading the devices could bring the
+  icon of the hidden device back, or stop that reading halfway so the "no devices" icon
+  did not show. Hiding and the device update now wait for each other.
 
 ## [1.12.0] - 2026-09-28
 

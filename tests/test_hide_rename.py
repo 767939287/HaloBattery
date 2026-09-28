@@ -266,7 +266,8 @@ class MenuLayoutTests(HideRenameTestCase):
         prefs = next(i for i in menu.items if i.text == "Preferences").submenu
         texts = [i.text for i in prefs.items if i is not hb.Menu.SEPARATOR]
         self.assertEqual(texts, ["Poll interval", "Low battery alert", "Alert when fully charged",
-                                 "Windows Bluetooth devices", "Device pictogram", "Charging animation", "Icon colour",
+                                 "Windows Bluetooth devices", "PlayStation full mode (Bluetooth)",
+                                 "Device pictogram", "Charging animation", "Icon colour",
                                  "Start with Windows", "Check for updates"])
 
 

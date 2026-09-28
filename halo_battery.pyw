@@ -94,6 +94,10 @@ DEFAULTS = {
     "update_check": True,   # once a day: is there a newer release on GitHub?
     # the Windows 11 style menu (flyout.py); false = the classic Windows menu (config file only)
     "fluent_menu": True,
+    # PlayStation controllers over Bluetooth: switch them to the full report to read the
+    # battery. Off by default: that mode stays on until the controller is turned off and
+    # games that use DirectInput stop seeing the controller (#96)
+    "playstation_full_mode": False,
 }
 
 
@@ -807,6 +811,11 @@ class App:
             Menu.SEPARATOR,
             Item("Windows Bluetooth devices", toggle("bluetooth"),
                  checked=lambda it: self.cfg["bluetooth"]),
+            # off: a PS4 / PS5 controller over Bluetooth shows its level only while Steam or a
+            # game has it in the full mode; on: the app switches it, which some games do not
+            # survive until the controller is turned off and on (#96)
+            Item("PlayStation full mode (Bluetooth)", toggle("playstation_full_mode"),
+                 checked=lambda it: self.cfg.get("playstation_full_mode", False)),
             Item("Device pictogram", toggle("badges"),
                  checked=lambda it: self.cfg["badges"]),
             Item("Charging animation", toggle("animation"),
@@ -1055,6 +1064,9 @@ class App:
             lines.append(f"(failed: {e})")
         lines.append("")
         lines.append("=== Protocol details ===")
+        lines.append("PlayStation full mode over Bluetooth: "
+                     + ("on (the app switches the controller)" if self.cfg.get("playstation_full_mode")
+                        else "off (listen only)"))
         for p in self.providers + ([self.bt] if self.cfg["bluetooth"] else []):
             lines += p.diagnostics()
         lines.append("")
@@ -1081,6 +1093,8 @@ class App:
     def poll_once(self) -> List[DeviceStatus]:
         results: List[DeviceStatus] = []
         for p in self.providers:
+            if isinstance(p, PlayStationProvider):
+                p.switch_bluetooth = bool(self.cfg.get("playstation_full_mode", False))
             try:
                 results += p.poll()
             except Exception:
@@ -1453,6 +1467,8 @@ def probe():
     app.bt = BluetoothProvider()
     res = []
     for p in app.providers + [app.bt]:
+        if isinstance(p, PlayStationProvider):
+            p.switch_bluetooth = bool(app.cfg.get("playstation_full_mode", False))
         res += p.poll()
         print("\n".join(p.diagnostics()))
     print("\n=== Summary ===")

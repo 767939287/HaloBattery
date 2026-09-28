@@ -19,6 +19,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ### Fixed
 - The menu text was small and blurry on displays scaled above 100 %: the app is now DPI
   aware, so the menu and the tray icons are drawn at the display's real resolution.
+- PS4 / PS5 controllers over Bluetooth stopped working in some games (DirectInput, for
+  example Rocket League from the Epic launcher) until they were turned off and on (#96).
+  To read the battery, the app switched the controller to its full report, and that
+  mode stays on. Over Bluetooth the app now only listens: the level shows while Steam or
+  a game has already switched the controller, and the icon shows no level otherwise.
+  **Preferences > PlayStation full mode (Bluetooth)** brings the old behaviour back for
+  those who do not play such games. USB is unchanged.
 
 ## [1.12.0] - 2026-09-28
 

@@ -6,6 +6,16 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- SteelSeries Arctis Nova Elite (`1038:2244`, #138): battery level and charging of the
+  headset through its base station, without SteelSeries GG. The app sends the read-only
+  status request `01 b0` to interface 3 and reads the `07 b7` frame (headset level,
+  charging) and the `07 b5` frame (headset off). A headset that is off shows no level;
+  the spare battery in the station is not shown. The exchange comes from
+  elegos/Linux-Arctis-Manager, made from a USB capture of SteelSeries GG on Windows.
+  **Unverified** on hardware: no Nova Elite was on hand, so a level above 100 is refused
+  rather than shown.
+
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic
   (blurred, translucent) background, rounded corners on Windows 11 and the light or dark

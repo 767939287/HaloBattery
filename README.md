@@ -86,14 +86,15 @@ Hover over the icon to see the exact percentage. The low battery notification fi
 
 ## Tray menu
 
-Right-click a device icon:
+Right-click a device icon to open its menu. It looks like a Windows 11 menu (acrylic background, rounded corners, the light or dark app theme) and is sharp at any display scale. If it does not work on your PC, set `"fluent_menu": false` in `%APPDATA%\HaloBattery\config.json` to get the classic Windows menu back.
 
 - **Rename…**: give the device your own name (for example, two controllers with the same name). **Reset name** goes back to the device's own name.
 - **Icon**: pick the pictogram of this device (Automatic, Mouse, Keyboard, Headset, Controller or Bluetooth), for example a controller over Bluetooth that shows the Bluetooth pictogram.
 - **Hide this device**: remove its icon, for example for a controller that always reports 100%.
 - **Refresh now**
 - **Preferences**:
-  - **Poll interval** (15 s to 5 min), **Low battery alert at** (off, 10–30%), **Alert when fully charged** (a notification once per charge, on by default)
+  - **Poll interval** (15 s to 5 min) and **Low battery alert** (off, 10–30%): change them with the − and + buttons or the mouse wheel, the menu stays open
+  - **Alert when fully charged** (a notification once per charge, on by default)
   - **Windows Bluetooth devices**, **Device pictogram**, **Charging animation**
   - **Icon colour**: Automatic (the Windows theme, or MyDockFinder's menu bar while it is running), White or Black
   - **Start with Windows** (per-user registry key, no admin rights needed)

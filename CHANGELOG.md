@@ -6,6 +6,20 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic
+  (blurred, translucent) background, rounded corners on Windows 11 and the light or dark
+  app theme. It fades in, opens next to the taskbar centred on the click (like the menus
+  of the Windows 11 taskbar) and opens submenus on hover; Esc or a
+  click elsewhere closes it, and it works from the keyboard. Set `"fluent_menu": false`
+  in the settings file to get the classic Windows menu back.
+- **Poll interval** and **Low battery alert** are now − / + counters in Preferences; the
+  menu stays open while you change them, and the mouse wheel works on them too.
+
+### Fixed
+- The menu text was small and blurry on displays scaled above 100 %: the app is now DPI
+  aware, so the menu and the tray icons are drawn at the display's real resolution.
+
 ## [1.12.0] - 2026-09-28
 
 A big device release: support for many more mice, keyboards and headsets - ASUS, G-Wolves,

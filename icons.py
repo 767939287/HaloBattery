@@ -369,6 +369,16 @@ def _capture(x: int, y: int, w: int, h: int, out_w: int, out_h: int) -> Optional
         user32.ReleaseDC(None, hdc)
 
 
+def _dpi_scale() -> float:
+    """The primary screen's scale (1.25 at 125 %). The app is DPI aware, so screen
+    coordinates are real pixels and the logical sizes below are multiplied by it."""
+    try:
+        import ctypes
+        return max(1.0, ctypes.windll.user32.GetDpiForSystem() / 96)
+    except Exception:
+        return 1.0
+
+
 def _screen_size():
     ctypes, wintypes, user32, gdi32 = _win32()
     return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)       # SM_CXSCREEN, SM_CYSCREEN
@@ -380,8 +390,9 @@ def grab_top_bar(bar_height: int = 24) -> Optional[Image.Image]:
         return None
     sw, _sh = _screen_size()
     x0 = int(sw * 0.6)
-    h = max(4, bar_height - 8)
-    return _capture(x0, 4, sw - x0, h, min(sw - x0, 400), h)
+    k = _dpi_scale()
+    h = max(4, round((bar_height - 8) * k))
+    return _capture(x0, round(4 * k), sw - x0, h, min(sw - x0, 400), h)
 
 
 _pid_names: dict = {}
@@ -447,10 +458,11 @@ def _under_bar_points():
     get_ex.restype = ctypes.c_ssize_t
     get_ex.argtypes = [ctypes.c_void_p, ctypes.c_int]
     sw, _sh = _screen_size()
+    y = round(UNDER_BAR_Y * _dpi_scale())
     out = []
     for fx in UNDER_BAR_XS:
         x = int(sw * fx)
-        hwnd = user32.WindowFromPoint(wintypes.POINT(x, UNDER_BAR_Y))
+        hwnd = user32.WindowFromPoint(wintypes.POINT(x, y))
         if not hwnd:
             out.append((x, "", "", False))
             continue

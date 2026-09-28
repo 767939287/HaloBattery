@@ -63,6 +63,7 @@ except ImportError:
 import pystray  # noqa: E402
 from pystray import Menu, MenuItem as Item  # noqa: E402
 
+import flyout  # noqa: E402
 import icons  # noqa: E402
 import updates  # noqa: E402
 import winevents  # noqa: E402
@@ -91,6 +92,8 @@ DEFAULTS = {
     # "windows" / "topbar" force one automatic source (config file only)
     "icon_theme": "auto",
     "update_check": True,   # once a day: is there a newer release on GitHub?
+    # the Windows 11 style menu (flyout.py); false = the classic Windows menu (config file only)
+    "fluent_menu": True,
 }
 
 
@@ -293,6 +296,7 @@ def single_instance() -> bool:
 
 
 # ------------------------------------------------------------- tray icons
+WM_RBUTTONUP = 0x0205
 ICON_HANDLE_CACHE = 64     # icon handles kept per tray icon (a charging cycle is 30 frames)
 IDLE_KEY = "HaloBattery:idle"   # the "no devices found" icon's id
 _tray_classes: Dict[type, type] = {}
@@ -365,6 +369,18 @@ def _make_tray_class(base: type) -> type:
                 return super()._release_icon()
             self._icon_handle = None                  # the handle stays in the cache
             return None
+
+        def _on_notify(self, wparam, lparam):
+            # a right-click opens the Windows 11 style menu (flyout.py); the classic
+            # menu is pystray's own and is still there when the flyout cannot open
+            host = getattr(self, "_hb_flyout", None)
+            if host is not None and lparam == WM_RBUTTONUP and self.menu:
+                try:
+                    if host.show(self.menu, self):
+                        return None
+                except Exception as e:
+                    log.warning("menu: %s", e)
+            return super()._on_notify(wparam, lparam)
 
         def forget_handles(self) -> None:
             """Free the cached handles once the icon is gone."""
@@ -576,6 +592,7 @@ class DeviceIcon:
         self.icon = tray_icon(key, f"{APP_NAME}_{abs(hash(key))}",
                               icons.render(None, False, False, light_taskbar=app.light_taskbar),
                               APP_TITLE, app.build_menu(self))
+        self.icon._hb_flyout = getattr(app, "flyout", None)
         # pystray calls the setup function once the icon's window exists. The app shows
         # the icon itself (in _update), after that, so a show is never lost.
         self.ready = threading.Event()
@@ -689,6 +706,9 @@ class App:
         self.bt_watch_failed = False
         self.update: Optional[tuple] = None   # (version, release page) when a newer one exists
         self.update_wake = threading.Event()  # "check for updates now"
+        # the tray menu (flyout.py); None = pystray's classic menu
+        self.flyout: Optional[flyout.FlyoutHost] = (
+            flyout.FlyoutHost() if sys.platform == "win32" and self.cfg.get("fluent_menu", True) else None)
 
     # ---------------- menu
     def build_menu(self, owner: Optional[DeviceIcon]) -> Menu:
@@ -699,18 +719,14 @@ class App:
             return f"No devices shown ({hidden} hidden)" if hidden else "No devices found"
 
         def set_interval(sec):
-            def _f(icon, item):
-                self.cfg["interval"] = sec
-                save_config(self.cfg)
-                self.wake.set()
-            return _f
+            self.cfg["interval"] = sec
+            save_config(self.cfg)
+            self.wake.set()
 
         def set_low(p):
-            def _f(icon, item):
-                self.cfg["low"] = p
-                save_config(self.cfg)
-                self.wake.set()
-            return _f
+            self.cfg["low"] = p
+            save_config(self.cfg)
+            self.wake.set()
 
         def toggle(key):
             def _f(icon, item):
@@ -744,8 +760,7 @@ class App:
             except OSError as e:
                 log.warning("autostart: %s", e)
 
-        intervals = [(15, "15 seconds"), (30, "30 seconds"), (60, "1 minute"),
-                     (120, "2 minutes"), (300, "5 minutes")]
+        intervals = [(15, "15 s"), (30, "30 s"), (60, "1 min"), (120, "2 min"), (300, "5 min")]
         themes = [("auto", "Automatic"), ("white", "White"), ("black", "Black")]
         lows = [(0, "Off"), (10, "10%"), (15, "15%"), (20, "20%"), (25, "25%"), (30, "30%")]
 
@@ -784,12 +799,9 @@ class App:
 
         # all settings in one submenu, so the main menu keeps only the things used often
         preferences = Menu(
-            Item("Poll interval", Menu(*[
-                Item(t, set_interval(s), checked=lambda it, s=s: self.cfg["interval"] == s, radio=True)
-                for s, t in intervals])),
-            Item("Low battery alert at", Menu(*[
-                Item(t, set_low(p), checked=lambda it, p=p: self.cfg["low"] == p, radio=True)
-                for p, t in lows])),
+            # - / + in the menu; the classic menu shows them as a list to pick from
+            flyout.CounterItem("Poll interval", intervals, lambda: self.cfg["interval"], set_interval),
+            flyout.CounterItem("Low battery alert", lows, lambda: self.cfg["low"], set_low),
             Item("Alert when fully charged", toggle("full_alert"),
                  checked=lambda it: self.cfg.get("full_alert", True)),
             Menu.SEPARATOR,
@@ -1174,6 +1186,7 @@ class App:
                                          icons.render(None, False, False, light_taskbar=self.light_taskbar),
                                          f"{APP_TITLE}: no devices found",
                                          self.build_menu(None))
+            self.placeholder._hb_flyout = getattr(self, "flyout", None)
             self.placeholder_ready = ready
             threading.Thread(target=self.placeholder.run, args=(lambda icon: ready.set(),),
                              daemon=True).start()
@@ -1383,6 +1396,9 @@ class App:
             ic.stop()
         if self.placeholder:
             self.placeholder.stop()
+        host = getattr(self, "flyout", None)
+        if host is not None:
+            host.stop()
 
     def run(self):
         log.info("start v%s", VERSION)
@@ -1392,6 +1408,8 @@ class App:
         threading.Thread(target=self.anim_loop, daemon=True).start()
         threading.Thread(target=self.bt_loop, daemon=True).start()
         threading.Thread(target=self.update_loop, daemon=True).start()
+        if self.flyout is not None:
+            self.flyout.start()                  # tkinter is ready by the first right-click
         try:
             while not self.stop_evt.is_set():
                 self.stop_evt.wait(1)
@@ -1449,6 +1467,9 @@ def probe():
 
 
 def main():
+    # before any window exists: without it Windows draws the app at 100 % and
+    # stretches it on a scaled screen, which made the menu text small and blurry
+    flyout.enable_dpi_awareness()
     if "--probe" in sys.argv:
         probe()
         return

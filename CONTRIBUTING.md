@@ -14,10 +14,31 @@ Before you report, do these steps:
 2. Wake the device: move the mouse, press a key, or turn the headset on.
 3. Right-click a Halo Battery icon and select **Diagnostics…**. The "No devices found" icon has this item too. If you run the app from source, `probe.bat` shows the same information in a console window; copy all of it into the issue.
 
+   <picture>
+     <source media="(prefers-color-scheme: dark)" srcset="docs/contributing/diagnostics-menu-dark.png">
+     <img src="docs/contributing/diagnostics-menu-light.png" alt="The tray menu of a device, with the Diagnostics item marked" width="381">
+   </picture>
+
+4. The report opens in your text editor (usually Notepad). It is a text file, `diagnostics.txt`, in `%APPDATA%\HaloBattery`. It starts like this:
+
+   ```
+   === Poll result ===
+   G502 LIGHTSPEED Wireless Gaming Mouse: 71%   [logitech:xxxxxxxx]
+
+   === Protocol details ===
+   [Logitech] pid=c539 'USB Receiver'
+     idx=1 'G502 LIGHTSPEED Wireless Gaming Mouse' unit=xxxxxxxx feature 1001: 0f 57 00 00 -> 71%
+
+   === All HID devices ===
+   VID=046d PID=c539 if=2 usage=ff00:0001 'Logitech' 'USB Receiver'
+   ```
+
+   The **All HID devices** part is the most important for a device that is not supported: it shows the ids (`VID`, `PID`) and the collections (`usage`) of your device.
+
 Then [open an issue](../../issues/new) and:
 
 - Write the device name, and how it is connected (receiver, cable or Bluetooth).
-- Drag the diagnostics file into the comment box. Do not paste only a part of it.
+- Drag `diagnostics.txt` into the comment box (type `%APPDATA%\HaloBattery` in the address bar of File Explorer to find it). Do not paste only a part of it.
 - If the maker's app shows a battery level, write that level and the level that Halo Battery shows.
 
 The report contains Bluetooth MAC addresses and device serial numbers. You can replace them with `xx` before you post.
@@ -28,7 +49,7 @@ Halo Battery reads a battery only with a known protocol. The protocol comes from
 
 If you know an open-source project that reads your device's battery, put the link in your issue. That is the fastest way.
 
-If there is no such project, and the maker's app (or web driver) shows the battery, a capture of that app gives the exact request and reply:
+If there is no such project, and the maker's app (or web driver) shows the battery, a capture of that app gives the exact request and reply. USBPcap's [illustrated guide](https://desowin.org/usbpcap/tour.html#use-usbpcap-as-wireshark-extcap) has screenshots of each Wireshark window in these steps, and the [Wireshark USB page](https://wiki.wireshark.org/CaptureSetup/USB) has more detail.
 
 1. Install [Wireshark](https://www.wireshark.org/download.html). In the installer, select **USBPcap**. Restart the computer.
 2. **Close the maker's app completely** (also from the tray).

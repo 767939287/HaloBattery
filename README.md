@@ -14,7 +14,7 @@ Levels are read over USB/HID (a dongle, a receiver or a cable), from Xbox-style 
 
 ## Supported devices
 
-`yes` - confirmed on real hardware (here, by a reporter, or by users who tried it) · `no` - written from a reference implementation and not yet confirmed on hardware · `likely` - read by the same code path as a confirmed device, but not individually tested. Each device links to its implementation notes in [docs/protocols.md](docs/protocols.md).
+**`yes`** means the level has actually been seen on the device - here, from a report, or from a user who tried it. **`no`** means the support was written from another tool's code and nobody has tried it on real hardware yet. **`likely`** means other models of the same family share the code, so they should work too - they just haven't been tried one at a time. Each device links to [notes on how its level is read](docs/protocols.md).
 
 | Device | Connection | Verified on hardware |
 |---|---|---|

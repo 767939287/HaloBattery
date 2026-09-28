@@ -170,11 +170,11 @@ class PollTest(unittest.TestCase):
         # The keyboard's control collection is 0059:0001, not a vendor page, so the
         # probe order (which ranks 0001/ff00 first) must still reach it.
         e = entry(0x025C, b"kbd", "Razer BlackWidow V3 Pro", iface=3, page=0x0059)
-        mouse = FakeMouse(tid=0x3F, raw_level=0xB5, charging=1)      # 0xB5 -> 71%
+        mouse = FakeMouse(tid=0x9F, raw_level=0xB5, charging=1)      # 0xB5 -> 71%
         out = self.poll([e], {b"kbd": mouse})
         self.assertEqual(len(out), 1)
         self.assertEqual((out[0].level, out[0].charging), (round(0xB5 / 255 * 100), True))
-        self.assertEqual(mouse.tids[0], 0x3F)
+        self.assertEqual(mouse.tids[0], 0x9F)
 
 
 # ------------------------------------------------------------------ tests
@@ -205,6 +205,13 @@ class TableTest(unittest.TestCase):
         self.assertEqual(R.KNOWN[0x00A7][0], "Razer Naga V2 Pro")
         self.assertEqual(R.KNOWN[0x00A8][0], "Razer Naga V2 Pro")
 
+    def test_the_blackwidow_pro_pair_is_known(self):
+        # OpenRazer lists get_battery/is_charging on both the wired class (0x025A) and,
+        # through inheritance, the wireless model (0x025C); the driver reads them with
+        # transaction id 0x3f and 0x9f respectively.
+        self.assertEqual(R.KNOWN[0x025A], ("Razer BlackWidow V3 Pro", 0x3F))
+        self.assertEqual(R.KNOWN[0x025C], ("Razer BlackWidow V3 Pro", 0x9F))
+
     def test_wired_viper_is_not_in_the_table(self):
         # 0078 is OpenRazer's USB_DEVICE_ID_RAZER_VIPER, a wired mouse with no battery.
         # The Viper Ultimate is 007A / 007B.
@@ -217,11 +224,6 @@ class TableTest(unittest.TestCase):
         # and is_charging in METHODS; the Wired class (0x025A) lists neither.
         self.assertEqual(R.KNOWN[0x025C][0], "Razer BlackWidow V3 Pro")
         self.assertIn(R.KNOWN[0x025C][1], R.TRANSACTION_IDS)
-
-    def test_the_wired_blackwidow_is_not_in_the_table(self):
-        self.assertNotIn(0x025A, R.KNOWN)
-        self.assertFalse(R.maybe_wireless(0x025A, "Razer BlackWidow V3 Pro"))
-        self.assertTrue(R.maybe_wireless(0x025C, "Razer BlackWidow V3 Pro"))
 
 
 class PollRazerTest(PollTest):

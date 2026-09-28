@@ -6,6 +6,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Logitech G PRO X 2 LIGHTSPEED headset on its receiver (046D:0AF7, #103), over Logitech's
+  Centurion transport as Solaar and HeadsetControl read it: battery and charging, read-only
+  requests. **Unverified** on hardware.
+
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic
   (blurred, translucent) background, rounded corners on Windows 11 and the light or dark

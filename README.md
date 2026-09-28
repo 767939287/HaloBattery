@@ -51,7 +51,16 @@ Levels are read over USB/HID (a dongle, a receiver or a cable), from Xbox-style 
 
 **PlayStation controllers over Bluetooth:** a DualShock 4 or DualSense sends its battery level over Bluetooth only in its "full report" mode. Switching a controller into that mode makes it invisible to games that use DirectInput until it is turned off and on again (#96), so the app does not switch it: the level shows while Steam or a game has already put the controller in that mode, and otherwise the icon shows the controller without a level. If you do not play such games, turn on **Preferences > PlayStation full mode (Bluetooth)** to always see the level. Over USB the level is always shown.
 
-Support for other devices is not guaranteed. The code already reads the other Razer wireless mice whose battery OpenRazer reads (Pro Click, Pro Click V2 and V2 Vertical, Naga, Viper, DeathAdder, Basilisk, Mamba, Lancehead and others; the list is `KNOWN` in `providers/razer.py`), includes protocols for some other WLmouse models, should read most other Logitech HID++ 2.0 mice and keyboards on a Lightspeed or Unifying receiver as well as the Logitech G533 / G535 / G633 / G635 / G733 / G933 / G935 / G PRO / G PRO X headsets and the other Arctis Nova 7 and Nova 5 models, reads the older Arctis 1 / 7 / 9 / Pro Wireless / 7+ and GameBuds the way HeadsetControl documents them, reads other Xbox-compatible controllers the same way as the GameSir G7 Pro and works with any Bluetooth device whose battery level Windows reports, but these have not been tested. New devices are added based on feedback and diagnostics logs: if yours is not detected or shows a wrong level, open an issue and attach the diagnostics report (see [Troubleshooting](#troubleshooting)).
+**Compatible, not tested.** The code reads these with the same paths as the devices above, but nobody has confirmed them on hardware yet:
+
+- **Razer** wireless mice whose battery OpenRazer reads: Pro Click, Pro Click V2 and V2 Vertical, Naga, Viper, DeathAdder, Basilisk, Mamba, Lancehead and others - the `KNOWN` list in `providers/razer.py` holds the full set.
+- **WLmouse**: the Beast X and Beast X Mini Pro, the same feature-report exchange as the Beast X Max.
+- **Logitech**: most other HID++ 2.0 mice and keyboards on a Lightspeed, Unifying or Bolt receiver, and the G533, G535, G633, G635, G733, G933, G935, G PRO and G PRO X headsets.
+- **SteelSeries**: the other Arctis Nova 7 and Nova 5 models, and the older Arctis 1, 7, 9, Pro Wireless, 7+ and GameBuds as HeadsetControl documents them.
+- **Xbox-compatible controllers**: read the same way as the GameSir G7 Pro.
+- **Bluetooth**: any device whose battery level Windows itself reports.
+
+Support for other devices is not guaranteed. New devices are added based on feedback and diagnostics logs: if yours is not detected or shows a wrong level, open an issue and attach the diagnostics report - see **Troubleshooting** below.
 
 Two limitations of the Maxwell support are worth stating rather than leaving to be discovered. Two Maxwells on one machine share a single icon: both endpoints report the serial `0000000000000000`, so nothing distinguishes them over HID and only the first one is read. And the Xbox cable PID (`3329:4B1E`) is derived from the Xbox dongle (`3329:4B18`) by the same +1 offset that separates the PC dongle `3329:4B19` from its cable `3329:4B1A` — it has not been measured against an Xbox model, so an Xbox cable may be read as `3329:4B18` and shown as not charging.
 

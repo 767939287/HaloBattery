@@ -51,6 +51,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
   class lists them). The wired id 1532:025A has no battery and is left out.
   **Unverified** here: no Razer keyboard was on hand, so the level arrives as the
   reference describes it until the reporter of #56 confirms.
+- AM Infinity 8K (Angry Miao) on its 2.4 GHz receiver (3151:5007), the same id
+  as the AJAZZ AJ159 APEX (2.4G 8K): the AJAZZ Control Center project's
+  AJ-series exchange over the receiver's ffff:0002 control collection - a
+  zero-payload 0xF7 status poll brings the 2.4G telemetry up, then the charge
+  reads from status report 0x05. No charging state is reported. **Unverified**
+  here: the exchange is confirmed on the reference project's own unit, so the
+  layout stands until the reporter of #72 confirms it on the AM Infinity.
 
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic

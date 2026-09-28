@@ -74,6 +74,12 @@ The same `b0` exchange as the other Nova headsets, asked for with report id `06`
 
 ## Mice
 
+### AM Infinity 8K (Angry Miao)
+
+**Connection:** 2.4 GHz receiver (3151:5007)
+
+The AJAZZ Control Center project's AJ-series exchange: a zero-payload `0xF7` status poll brings the receiver's 2.4G telemetry up, then the charge reads from status report `0x05` (`05 00 00 64 01 01 01 02`, charge at byte 3 on Windows). A zero charge or junk bytes are shown as no level rather than a wrong value, and no charging state is reported. **Unverified** - no AM Infinity was on hand; the exchange is confirmed on the reference project's own unit, so the layout stands until the reporter of #72 confirms it
+
 ### ASUS ROG Gladius III Aimpoint and other ROG / TUF wireless mice
 
 **Connection:** 2.4 GHz receiver or USB cable (for example 0B05:1A72)

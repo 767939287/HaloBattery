@@ -54,6 +54,12 @@ Its receiver publishes two collections and neither answers the standard Razer mo
 
 The headset's own "PA" protocol: output reports 0x02 on the vendor interface 0xFF00, remote mode 0xE1, commands 0x21 (battery) and 0x2A (charging)
 
+### SteelSeries Arctis and GameBuds (other models)
+
+**Connection:** wireless base station or dongle
+
+The same `b0` exchanges as the Nova 7 above, applied to the other Arctis Nova 7 and Nova 5 family models; and the older Arctis 1, 7, 9, Pro Wireless, the Arctis 7+ (nine-step level) and the GameBuds (lower earbud level) exactly as HeadsetControl documents their requests. The Nova Pro Wireless stations (`1038:12E0`, `1038:12E5`) are handled too. The models in the support table above are the confirmed ones.
+
 ### SteelSeries Arctis Nova 7
 
 **Connection:** 2.4 GHz dongle (1038:22A1)
@@ -76,7 +82,7 @@ The battery command G-Helper uses: output report 0 `12 07` (65 bytes) on the ven
 
 ### G-Wolves WARG, HTS Plus (Pro), HTXU, Lycan, Fenrir Pro / Asym, HTX Mini
 
-**Connection:** 8K receiver (33E4:3854) or USB cable
+**Connection:** 8K receiver or USB cable
 
 The same feature report exchange as the WLmouse mice (`00 00 02 02 00 83` out, `a1 ... 83 <charging> <battery%>` back), which G-Wolves' web driver mouse.xyz uses for every mouse on this receiver. The request goes only to the collection that Windows reports with a 64-byte feature report (HidP_GetCaps), as the web driver chooses it. A sleeping mouse keeps its last value on a greyed icon. **Unverified** - no G-Wolves mouse was on hand
 
@@ -122,6 +128,12 @@ The standard Razer 90-byte feature report, as used by Synapse and OpenRazer: pow
 
 Same mice protocol: transaction id 0x1F, command class 0x07, command 0x80 answers `02 1f 00 00 00 02 07 80 00 ab`, and raw 0xAB = 171/255 = 67%, stable across polls and unchanged while Synapse runs. Idle, the mouse answers status 04 and keeps its last level on a greyed icon
 
+### Razer wireless mice (other OpenRazer models)
+
+**Connection:** 2.4 GHz receiver or USB cable
+
+The same exchange as the Razer mice above: the 90-byte feature report, command class `0x07`, command `0x80`, transaction ids from OpenRazer's device entries. Pro Click, Pro Click V2 and V2 Vertical, Naga, Viper, DeathAdder, Basilisk, Mamba, Lancehead and others - `KNOWN` in `providers/razer.py` holds the full list. Battery is only read for the models OpenRazer itself reads.
+
 ### SteelSeries Aerox 3 Wireless
 
 **Connection:** 2.4 GHz dongle (1038:1838)
@@ -133,6 +145,12 @@ The receiver's battery query: it flags its configuration opcodes with `0x40` ove
 **Connection:** 2.4 GHz dongle (1038:1830)
 
 The mouse exchange on the same interface and the same `0xFFC0` configuration collection as the headsets, but not the `b0` request: a 64-byte `00 aa 01 ...` out, answered by a report carrying the level. The two references disagree about the reply and neither has been on hardware here, so both shapes are read: a reply that echoes `aa` (level in byte 1, charging in byte 3, as yurtemre7/steel-mouse reads it) and a 3-byte reply read the way flozz/rivalcfg does (level in byte 0, charging in byte 2, the same request and the same hidapi read). A leading report id byte of `0x00` is skipped, a level above 100 is refused in both shapes, and in the 3-byte shape the charging byte has to be 0 or 1 so a stray report cannot pass as a level - the diagnostics print the raw reply and say which shape was used. The collection is picked by usage page `0xFFC0` rather than by interface number, because the Rival 650 has it on interface 0 (rivalcfg issue #202). Works alongside SteelSeries GG; the Gen 2 revision (1038:1872) is included untested
+
+### WLmouse Beast X and Beast X Mini Pro
+
+**Connection:** 8K or 1K receiver, or USB cable
+
+The same feature-report exchange as the Beast X Max (`00 00 02 02 00 83` out, `a1 00 02 02 00 83 <charging> <battery %>` back), on the vendor collection `ffff:0000`. The provider's receiver table lists `0xA887` (Beast X) and `0xA868` (Beast X Mini Pro); the Max is confirmed, these two are not.
 
 ### WLmouse Beast X Max
 
@@ -186,6 +204,12 @@ Read straight from the HID input report (USB byte 53, Bluetooth full report byte
 
 Read straight from the HID input report: exact percentage and charging state (USB byte 30, Bluetooth full report byte 32). Over Bluetooth, see the note below the table
 
+### Xbox-compatible controllers (other models)
+
+**Connection:** USB or the Xbox wireless adapter
+
+Any Xbox-compatible controller is read the same way as the GameSir G7 Pro: the battery level from `Windows.Gaming.Input.RawGameControllers`, with XInput's coarse level (low / medium / full) as the fallback. Controllers other than the GameSir have not been individually tested.
+
 ## Bluetooth
 
 ### Bluetooth devices, tested on the 1MORE SonoFlow headset
@@ -193,3 +217,11 @@ Read straight from the HID input report: exact percentage and charging state (US
 **Connection:** Bluetooth (on by default, can be turned off in the menu)
 
 The level Windows itself knows (`DEVPKEY_Bluetooth_Battery`). Only devices connected right now are shown: the link state comes from WinRT (`BluetoothDevice.ConnectionStatus`, the same source as Windows Settings). A device that is also read over HID keeps one icon: the HID reading wins and the Bluetooth copy is dropped
+
+## Others
+
+### Logitech (more HID++ 2.0 devices and G-series headsets)
+
+**Connection:** Lightspeed, Unifying or Bolt receiver
+
+The provider reads HID++ 2.0 generically from the receiver's `ff00` vendor collections (slots 1-6), so most other HID++ 2.0 mice and keyboards on a Lightspeed, Unifying or Bolt receiver should answer the same `0x1004` unified battery request. The G-series headsets - G533, G535, G633, G635, G733, G933, G935, G PRO, G PRO X - are in the headset pid table and use feature `0x1F20` (the G535 on its consumer collection). Only the models listed in the support table above are confirmed so far.

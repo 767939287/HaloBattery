@@ -14,7 +14,7 @@ Levels are read over USB/HID (a dongle, a receiver or a cable), from Xbox-style 
 
 ## Supported devices
 
-`yes` - confirmed on real hardware (here, by a reporter, or by users who tried it) · `no` - written from a reference implementation and not yet confirmed on hardware. Each device links to its implementation notes in [docs/protocols.md](docs/protocols.md).
+`yes` - confirmed on real hardware (here, by a reporter, or by users who tried it) · `no` - written from a reference implementation and not yet confirmed on hardware · `likely` - read by the same code path as a confirmed device, but not individually tested. Each device links to its implementation notes in [docs/protocols.md](docs/protocols.md).
 
 | Device | Connection | Protocol | Verified on hardware |
 |---|---|---|---|
@@ -24,7 +24,7 @@ Levels are read over USB/HID (a dongle, a receiver or a cable), from Xbox-style 
 | [Bluetooth devices, tested on the 1MORE SonoFlow headset (users also report Audio-Technica and JBL Tune 760NC headphones working)](docs/protocols.md#bluetooth-devices-tested-on-the-1more-sonoflow-headset) | Bluetooth (on by default, can be turned off in the menu) | the level Windows itself reports | yes |
 | [Corsair Void v2 Wireless, Virtuoso Max Wireless, HS80 Max Wireless](docs/protocols.md#corsair-void-v2-wireless-virtuoso-max-wireless-hs80-max-wireless) | Wireless receiver (1B1C:2A08, 1B1C:2A02, 1B1C:0A97) | vendor interface 4, command `0x0F`, hundredths of a percent | no |
 | [GameSir G7 Pro; FlyDigi Vader Pro (tested by users)](docs/protocols.md#gamesir-g7-pro-flydigi-vader-pro) | 2.4 GHz receiver (shows up as an Xbox controller) | Windows.Gaming.Input, XInput fallback | yes |
-| [G-Wolves WARG, HTS Plus (Pro), HTXU, Lycan, Fenrir Pro / Asym, HTX Mini](docs/protocols.md#g-wolves-warg-hts-plus-pro-htxu-lycan-fenrir-pro--asym-htx-mini) | 8K receiver (33E4:3854) or USB cable | same exchange as the WLmouse mice | no |
+| [G-Wolves WARG, HTS Plus (Pro), HTXU, Lycan, Fenrir Pro / Asym, HTX Mini](docs/protocols.md#g-wolves-warg-hts-plus-pro-htxu-lycan-fenrir-pro--asym-htx-mini) | 8K receiver or USB cable | same exchange as the WLmouse mice | no |
 | [HyperX Cloud II Wireless](docs/protocols.md#hyperx-cloud-ii-wireless) | 2.4 GHz dongle (03F0:0696, and 03F0:018B on the newer dongle revision) | vendor `0xFF90`, commands `0x02`/`0x03` | no |
 | [HyperX Cloud III Wireless](docs/protocols.md#hyperx-cloud-iii-wireless) | 2.4 GHz dongle (03F0:05B7, and 03F0:0C9D which the reference also lists) | vendor `0xFF13`, `66` packet | no |
 | [JBL Quantum 910 Wireless](docs/protocols.md#jbl-quantum-910-wireless) | 2.4 GHz dongle (0ECB:2088) | event report `0x08` on `ff13:0001` | yes |
@@ -32,6 +32,7 @@ Levels are read over USB/HID (a dongle, a receiver or a cable), from Xbox-style 
 | [LAMZU Maya X](docs/protocols.md#lamzu-maya-x) | 8K dongle (373E:001E) or USB cable (373E:001C) | the WLmouse `02 02 00 83` exchange, collection `ffff:0000` | no |
 | [Lofree Hyzen](docs/protocols.md#lofree-hyzen) | 2.4 GHz dongle (388D:0025) | the web driver's `AA`/`1A` on report `0x04` | no |
 | [Logitech G502 LIGHTSPEED, G502 X PLUS](docs/protocols.md#logitech-g502-lightspeed-g502-x-plus) | Lightspeed receiver (046D:C539, 046D:C547) | HID++ 2.0 battery features | yes |
+| [Logitech (more HID++ 2.0 devices and G-series headsets)](docs/protocols.md#logitech-more-hid-20-devices-and-g-series-headsets) | Lightspeed, Unifying or Bolt receiver | HID++ 2.0 features `0x1004` / `0x1F20` | likely |
 | [MCHOSE A7 V2 Ultra](docs/protocols.md#mchose-a7-v2-ultra) | 2.4 GHz receiver (3837:100B, RealTek strings) | the M7 Ultra protocol, report `0x11` | no |
 | [MCHOSE G7](docs/protocols.md#mchose-g7) | USB (A8A5:2255, chip 'YJX-CHIP') | `AA 30` input report | yes |
 | [MCHOSE M7 Ultra](docs/protocols.md#mchose-m7-ultra) | 2.4 GHz receiver (5253:1020) | vendor `0xFF01`, report `0x11` or `0x12` | yes |
@@ -41,26 +42,27 @@ Levels are read over USB/HID (a dongle, a receiver or a cable), from Xbox-style 
 | [Razer Basilisk V3 Pro, Razer Basilisk Ultimate (tested by users)](docs/protocols.md#razer-basilisk-v3-pro-razer-basilisk-ultimate) | 2.4 GHz receiver | Razer `0x07`/`0x80` feature report | yes |
 | [Razer BlackShark V2 Pro (2023)](docs/protocols.md#razer-blackshark-v2-pro-2023) | 2.4 GHz receiver (1532:0555) | Razer `PA`, report `0x02` on `0xFF00` | yes |
 | [Razer DeathAdder V4 Pro](docs/protocols.md#razer-deathadder-v4-pro) | 2.4 GHz receiver (1532:00BF) | Razer `0x07`/`0x80`, transaction `0x1F` | yes |
+| [Razer wireless mice (other OpenRazer models)](docs/protocols.md#razer-wireless-mice-other-openrazer-models) | 2.4 GHz receiver or USB cable | the standard Razer `PA` / `0x07`-`0x80` exchange | likely |
 | [Sony DualSense (PS5)](docs/protocols.md#sony-dualsense-ps5) | USB or Bluetooth | HID input report | yes |
 | [Sony DualShock 4 (PS4)](docs/protocols.md#sony-dualshock-4-ps4) | USB cable and Bluetooth (054C:09CC) | HID input report | yes |
 | [SteelSeries Aerox 3 Wireless](docs/protocols.md#steelseries-aerox-3-wireless) | 2.4 GHz dongle (1038:1838) | `00 aa 01` on `0xFFC0` | no |
+| [SteelSeries Arctis and GameBuds (other models)](docs/protocols.md#steelseries-arctis-and-gamebuds-other-models) | wireless base station or dongle | `b0` on the vendor collection | likely |
 | [SteelSeries Arctis Nova 7](docs/protocols.md#steelseries-arctis-nova-7) | 2.4 GHz dongle (1038:22A1) | `00 b0` on `0xFFC0` | yes |
 | [SteelSeries Arctis Nova Pro Wireless (`1038:12E0`, `1038:12E5` X)](docs/protocols.md#steelseries-arctis-nova-pro-wireless-103812e0-103812e5-x) | Wireless base station, interface 3 or 4 | `b0` asked with report `06`, nine-step level | no |
 | [SteelSeries Rival 3 Wireless](docs/protocols.md#steelseries-rival-3-wireless) | 2.4 GHz dongle (1038:1830) | `00 aa 01` on `0xFFC0` | no |
+| [WLmouse Beast X and Beast X Mini Pro](docs/protocols.md#wlmouse-beast-x-and-beast-x-mini-pro) | 8K or 1K receiver, or USB cable | feature report `02 02 00 83` | likely |
 | [WLmouse Beast X Max](docs/protocols.md#wlmouse-beast-x-max) | 8K receiver (36A7:A880) and USB cable | feature report `02 02 00 83` | yes |
+| [Xbox-compatible controllers (other models)](docs/protocols.md#xbox-compatible-controllers-other-models) | USB or the Xbox wireless adapter | Windows.Gaming.Input, XInput fallback | likely |
 
 **PlayStation controllers over Bluetooth:** a DualShock 4 or DualSense sends its battery level over Bluetooth only in its "full report" mode. Switching a controller into that mode makes it invisible to games that use DirectInput until it is turned off and on again (#96), so the app does not switch it: the level shows while Steam or a game has already put the controller in that mode, and otherwise the icon shows the controller without a level. If you do not play such games, turn on **Preferences > PlayStation full mode (Bluetooth)** to always see the level. Over USB the level is always shown.
 
-**Compatible, not tested.** The code reads these with the same paths as the devices above, but nobody has confirmed them on hardware yet:
+The devices marked `likely` are the same code paths with other models: the rest of the Razer list
+OpenRazer reads, the other WLmouse models, more Logitech HID++ 2.0 devices and G-series headsets,
+the other Arctis Nova and older Arctis models, and other Xbox-compatible controllers.
 
-- **Razer** wireless mice whose battery OpenRazer reads: Pro Click, Pro Click V2 and V2 Vertical, Naga, Viper, DeathAdder, Basilisk, Mamba, Lancehead and others - the `KNOWN` list in `providers/razer.py` holds the full set.
-- **WLmouse**: the Beast X and Beast X Mini Pro, the same feature-report exchange as the Beast X Max.
-- **Logitech**: most other HID++ 2.0 mice and keyboards on a Lightspeed, Unifying or Bolt receiver, and the G533, G535, G633, G635, G733, G933, G935, G PRO and G PRO X headsets.
-- **SteelSeries**: the other Arctis Nova 7 and Nova 5 models, and the older Arctis 1, 7, 9, Pro Wireless, 7+ and GameBuds as HeadsetControl documents them.
-- **Xbox-compatible controllers**: read the same way as the GameSir G7 Pro.
-- **Bluetooth**: any device whose battery level Windows itself reports.
-
-Support for other devices is not guaranteed. New devices are added based on feedback and diagnostics logs: if yours is not detected or shows a wrong level, open an issue and attach the diagnostics report - see **Troubleshooting** below.
+Support for other devices is not guaranteed. New devices are added based on feedback and diagnostics
+logs: if yours is not detected or shows a wrong level, open an issue and attach the diagnostics
+report - see **Troubleshooting** below.
 
 Two limitations of the Maxwell support are worth stating rather than leaving to be discovered. Two Maxwells on one machine share a single icon: both endpoints report the serial `0000000000000000`, so nothing distinguishes them over HID and only the first one is read. And the Xbox cable PID (`3329:4B1E`) is derived from the Xbox dongle (`3329:4B18`) by the same +1 offset that separates the PC dongle `3329:4B19` from its cable `3329:4B1A` — it has not been measured against an Xbox model, so an Xbox cable may be read as `3329:4B18` and shown as not charging.
 

@@ -86,7 +86,7 @@ Is your device not detected, or does it show a wrong level? Send a diagnostics r
      <img src="docs/contributing/diagnostics-menu-light.png" alt="The tray menu of a device, with the Diagnostics item marked" width="381">
    </picture>
 
-3. The report `diagnostics.txt` opens in Notepad. [Open an issue](../../issues/new), write the device name and how it is connected (receiver, cable or Bluetooth), and drag the file into the comment box. The file is in `%APPDATA%\HaloBattery`.
+3. The report `diagnostics.txt` opens in Notepad. [Open an issue](../../issues/new?template=device.yml), write the device name and how it is connected (receiver, cable or Bluetooth), and drag the file into the comment box. The file is in `%APPDATA%\HaloBattery`.
 
 The report contains Bluetooth MAC addresses and device serial numbers. You can replace them with `xx` before you post.
 

@@ -8,8 +8,8 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 - HyperX Cloud III S Wireless on its dongle (03F0:02CC, #106), with the protocol of
-  HyperHeadset's `cloud_iii_s_wireless`, sent as output reports the way NGENUITY sends them: battery and charging, read-only requests. **Unverified** on
-  hardware.
+  HyperHeadset's `cloud_iii_s_wireless`, sent as output reports the way NGENUITY sends them: battery and charging, read-only requests. **Verified on hardware** in #106: 89 %, the same level as
+  NGENUITY.
 
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic

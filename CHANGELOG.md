@@ -17,6 +17,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   menu stays open while you change them, and the mouse wheel works on them too.
 
 ### Fixed
+- An Xbox controller over Bluetooth could show a wrong "10%" when **Windows Bluetooth
+  devices** was off (#97, #108). Windows.Gaming.Input reports 100 of 1000 for it, and the
+  app did not always see that the controller is on Bluetooth. The product ids that Xbox
+  controllers use only over Bluetooth (from SDL) now say so, and the icon asks you to turn
+  on **Windows Bluetooth devices** for the real level.
 - The menu text was small and blurry on displays scaled above 100 %: the app is now DPI
   aware, so the menu and the tray icons are drawn at the display's real resolution.
 - PS4 / PS5 controllers over Bluetooth stopped working in some games (DirectInput, for

@@ -26,6 +26,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
   a game has already switched the controller, and the icon shows no level otherwise.
   **Preferences > PlayStation full mode (Bluetooth)** brings the old behaviour back for
   those who do not play such games. USB is unchanged.
+- Razer Barracuda Pro: while the headset was off, each poll waited about 4 seconds longer
+  than needed and held back the icons of all other devices. The app now stops asking as
+  soon as the headset does not answer, and it retries when the receiver refuses a command.
 
 ## [1.12.0] - 2026-09-28
 

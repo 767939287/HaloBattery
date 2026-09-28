@@ -17,6 +17,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   menu stays open while you change them, and the mouse wheel works on them too.
 
 ### Fixed
+- A Razer mouse could show "no link (off or asleep)" while in use, when Synapse or other
+  RGB software was sending lighting frames to it (#108). Every reply the app read was an
+  answer to the other app, and the app took that as a success without a level. It now
+  asks again up to three times, keeps the last level greyed out, and the diagnostics say
+  that another app is using the device.
 - The menu text was small and blurry on displays scaled above 100 %: the app is now DPI
   aware, so the menu and the tray icons are drawn at the display's real resolution.
 - PS4 / PS5 controllers over Bluetooth stopped working in some games (DirectInput, for

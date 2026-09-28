@@ -6,6 +6,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- HyperX Cloud III S Wireless on its dongle (03F0:02CC, #106), with the protocol of
+  HyperHeadset's `cloud_iii_s_wireless`: battery and charging, read-only requests. **Unverified** on
+  hardware.
+
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic
   (blurred, translucent) background, rounded corners on Windows 11 and the light or dark

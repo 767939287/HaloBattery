@@ -6,6 +6,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Razer BlackWidow V3 Pro: the battery over its 2.4 GHz receiver (1532:025C), through
+  the same class 0x07 commands the mice use (OpenRazer's RazerBlackWidowV3ProWireless
+  class lists them). The wired id 1532:025A has no battery and is left out.
+  **Unverified** here: no Razer keyboard was on hand, so the level arrives as the
+  reference describes it until the reporter of #56 confirms.
+
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic
   (blurred, translucent) background, rounded corners on Windows 11 and the light or dark

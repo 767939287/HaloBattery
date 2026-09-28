@@ -11,7 +11,7 @@ and the project follows [Semantic Versioning](https://semver.org/).
   HyperSpeed and BlackWidow V4 Tenkeyless HyperSpeed keyboards, on the HyperSpeed receiver or
   the cable (#106). The transaction ids (0x9F wireless, 0x1F wired) and the USB interface that
   takes the commands (2 or 3) come from OpenRazer's keyboard driver. The icon shows the
-  keyboard pictogram. **Unverified** on hardware.
+  keyboard pictogram. The DeathStalker V2 Pro TKL is confirmed on hardware (#106); the others are not tested yet.
 
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic

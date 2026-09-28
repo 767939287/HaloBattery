@@ -6,6 +6,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Corsair Dark Core RGB Pro SE: the battery over its 2.4 GHz dongle (1B1C:1B7F),
+  through the Dark Core / Ironclaw "nxp" protocol from ckb-next. Its five-step
+  level is shown as a gauge ("about 50%") and no charging state is reported.
+  **Unverified** here: no Corsair mouse was on hand, so the collection and the
+  offsets are the reference's until the reporter of #56 confirms.
+
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic
   (blurred, translucent) background, rounded corners on Windows 11 and the light or dark

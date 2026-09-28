@@ -109,7 +109,7 @@ Right-click a device icon to open its menu. It looks like a Windows 11 menu (acr
 
 1. Close Synapse, the WLmouse web driver and other battery tools: they may hold the receiver.
 2. Wake the mouse up by moving it.
-3. Run `probe.bat` or choose **Diagnostics…** from the tray menu. The report lists every HID device and the raw protocol replies. Attach it to an issue in this repository to get a new device supported. The report contains Bluetooth MAC addresses and device serial numbers; you may want to redact them before posting.
+3. Run `probe.bat` or choose **Diagnostics…** from the tray menu. The report lists every HID device and the raw protocol replies. Attach it to an issue in this repository to get a new device supported. The report contains Bluetooth MAC addresses and device serial numbers; you may want to redact them before posting. [CONTRIBUTING.md](CONTRIBUTING.md) tells you what to attach, how to record a USB capture for a device that is not supported yet, and how to open a pull request.
 4. **"python312.dll was not found"**, or **Start with Windows** says the app runs from a temporary folder: the app was started straight from the ZIP, or only `HaloBattery.exe` was copied out of it. Extract the whole ZIP to a folder of its own (the `_internal` folder must stay next to the .exe) and run `HaloBattery.exe` from there.
 
 Settings, the log and the diagnostics report live in `%APPDATA%\HaloBattery`.

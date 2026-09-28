@@ -177,6 +177,11 @@ own one, please tell us whether the level matches.
   DeathAdder V3 HyperSpeed, Basilisk Mobile, Orochi V2, Atheris and the older Mamba / Lancehead
   mice. Before, a mouse without "wireless" or "HyperSpeed" in its name was skipped.
   `tests/test_razer.py` checks the table against a copy of OpenRazer's list.
+- **Hitscan Hyperlight** over its receiver (3770:0200) and on the cable (3770:0100):
+  the same 17-byte frame the Pulsar / ATK / VXE mice use, from @sopparus's captures, notes and
+  Linux reader ([sopparus/hitscan-battery](https://github.com/sopparus/hitscan-battery)).
+  Unverified: no Hyperlight was on hand, so [#105](https://github.com/HeyOkay/HaloBattery/issues/105)
+  will confirm.
 
 ### Changed
 - **The keyboard pictogram is a single keycap with a K.** The old one, a whole keyboard with

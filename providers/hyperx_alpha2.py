@@ -18,7 +18,9 @@ NGENUITY displayed at the time:
               reported as charging (one capture each way)
 
 Do not use the 61 02 frame: it is byte-identical across both charge levels, so it
-is not the battery. A reply that does not start 51 02 is ignored, and a level
+is not the battery. While NGENUITY runs, the same channel carries thousands of
+`ff 01` and `44`/`45` frames; stale reports are drained before the request and the
+reply is read until it arrives, so the two applications can run at once. A reply that does not start 51 02 is ignored, and a level
 above 100 is refused rather than shown as a made-up number.
 """
 from __future__ import annotations
@@ -51,9 +53,13 @@ LEVEL_INDEX = 2
 FLAGS_INDEX = 6
 CHARGING_BIT = 0x80
 
-# the reply can sit behind other reports on the same collection
-READ_ATTEMPTS = 4
-READ_TIMEOUT_MS = 300
+# while the vendor app is open the station talks constantly (thousands of `ff 01`
+# and `44`/`45` frames against a handful of battery replies), so stale input reports
+# are drained before the write and the reply is then read until it arrives.
+DRAIN_MAX = 64
+DRAIN_TIMEOUT_MS = 5
+READ_TIMEOUT_MS = 150
+REPLY_DEADLINE_MS = 1500
 
 
 def make_request() -> List[int]:
@@ -97,17 +103,29 @@ class HyperXAlpha2Provider(Provider):
             self._diag.append(f"  open: {e}")
             return None
         try:
+            # clear the backlog first: with the vendor app running the queue is full of
+            # its housekeeping, and a reply read from the back of it would never arrive
+            drained = 0
+            while drained < DRAIN_MAX:
+                if not dev.read(REPLY_LEN, DRAIN_TIMEOUT_MS):
+                    break
+                drained += 1
             dev.write(make_request())
-            for _ in range(READ_ATTEMPTS):
-                time.sleep(0.05)
+            deadline = time.monotonic() + REPLY_DEADLINE_MS / 1000.0
+            seen = 0
+            while time.monotonic() < deadline:
                 r = dev.read(REPLY_LEN, READ_TIMEOUT_MS)
                 if not r:
                     continue
-                self._diag.append(f"  reply: {hexdump(r)}")
                 parsed = parse_reply(r)
                 if parsed is not None:
+                    extra = f" after {seen} other frame(s)" if seen or drained else ""
+                    self._diag.append(f"  reply{extra}: {hexdump(r)}")
                     return parsed
-            self._diag.append("  no 51 02 reply")
+                if seen == 0:
+                    self._diag.append(f"  first frame: {hexdump(r)}")
+                seen += 1
+            self._diag.append(f"  no 51 02 reply ({seen} frame(s) seen, {drained} drained)")
             return None
         except (OSError, IOError, ValueError) as e:
             self._diag.append(f"  error: {e}")

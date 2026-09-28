@@ -31,12 +31,15 @@ SHAPE = [
 REPLY_51 = bytes.fromhex("51 02 33 00 1a 00 00 0f 01 01 0a".replace(" ", "")) + bytes(53)
 REPLY_67 = bytes.fromhex("51 02 43 00 1a 00 86 0f 01 01 0a".replace(" ", "")) + bytes(53)
 # the frame that is NOT the battery: byte-identical at both charge levels
+KEEPALIVE = bytes([0xFF, 0x01]) + bytes(62)  # `ff 01` housekeeping frame
 REPLY_61 = bytes.fromhex("61 02 5a 00 01 14 00 00 01 10 00 00 80 01 09 01 00 00 00 30".replace(" ", "")) + bytes(44)
 
 
 class FakeDevice:
-    def __init__(self, replies):
-        self.replies = list(replies)
+    """Read-by-read transcript: None means "nothing pending", like the real device."""
+
+    def __init__(self, transcript):
+        self.transcript = list(transcript)
         self.written = []
 
     def open_path(self, path):
@@ -47,7 +50,8 @@ class FakeDevice:
         return len(data)
 
     def read(self, length, timeout_ms):
-        return list(self.replies.pop(0)) if self.replies else []
+        item = self.transcript.pop(0) if self.transcript else None
+        return [] if item is None else list(item)
 
     def close(self):
         pass
@@ -84,13 +88,37 @@ class ReplyParsing(unittest.TestCase):
 
 class Polling(unittest.TestCase):
     def setUp(self):
-        self.fake = FakeDevice([REPLY_61, REPLY_51])  # other frame first, then the reply
+        self._deadline = P.REPLY_DEADLINE_MS
+        # None = the drain finds the queue empty; then one other frame, then the reply
+        self.fake = FakeDevice([None, REPLY_61, REPLY_51])
         self._hid, self._enumerate = P.hid, P.hidlist.enumerate
         P.hid = types.SimpleNamespace(device=lambda: self.fake)
         P.hidlist.enumerate = lambda vid: infos_for(SHAPE)
 
     def tearDown(self):
         P.hid, P.hidlist.enumerate = self._hid, self._enumerate
+        P.REPLY_DEADLINE_MS = self._deadline
+
+    def test_survives_a_flooded_queue(self):
+        """NGENUITY's keepalive traffic must not hide the reply."""
+        P.REPLY_DEADLINE_MS = 2000
+        self.fake.transcript = [None] + [KEEPALIVE] * 20 + [REPLY_51]
+        devs = P.HyperXAlpha2Provider().poll()
+        self.assertEqual(len(devs), 1)
+        self.assertEqual(devs[0].level, 51)
+
+    def test_drain_is_capped_and_the_reply_still_arrives(self):
+        P.REPLY_DEADLINE_MS = 2000
+        self.fake.transcript = [KEEPALIVE] * 100 + [REPLY_51]  # no gap: always more traffic
+        devs = P.HyperXAlpha2Provider().poll()
+        self.assertEqual([d.level for d in devs], [51])
+
+    def test_only_keepalives_ends_in_no_reading(self):
+        P.REPLY_DEADLINE_MS = 150
+        self.fake.transcript = [None] + [KEEPALIVE] * 5000
+        prov = P.HyperXAlpha2Provider()
+        self.assertEqual(prov.poll(), [])
+        self.assertTrue(any("no 51 02 reply" in line for line in prov.diagnostics()))
 
     def test_reads_the_level_from_the_controller_collection(self):
         devs = P.HyperXAlpha2Provider().poll()

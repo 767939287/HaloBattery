@@ -26,6 +26,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
   a game has already switched the controller, and the icon shows no level otherwise.
   **Preferences > PlayStation full mode (Bluetooth)** brings the old behaviour back for
   those who do not play such games. USB is unchanged.
+- Less CPU while a device charges: each new battery level drew the charging animation
+  twice, once for a light and once for a dark taskbar. Only the colour in use is drawn
+  now; the other one is drawn once, the first time the taskbar or the MyDockFinder bar
+  changes colour.
 
 ## [1.12.0] - 2026-09-28
 

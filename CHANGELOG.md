@@ -26,6 +26,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   a game has already switched the controller, and the icon shows no level otherwise.
   **Preferences > PlayStation full mode (Bluetooth)** brings the old behaviour back for
   those who do not play such games. USB is unchanged.
+- A device used over Bluetooth lost its battery level when its USB receiver was also
+  plugged in (for example a Razer Barracuda Pro, or a mouse switched to its Bluetooth
+  channel): the Bluetooth reading was hidden as a duplicate and only the grey "no link"
+  icon of the receiver was left. The Bluetooth reading is now hidden only while the
+  receiver actually reads the device.
 
 ## [1.12.0] - 2026-09-28
 

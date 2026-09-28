@@ -167,8 +167,9 @@ class PollTest(unittest.TestCase):
         return R.RazerProvider().poll()
 
     def test_the_blackwidow_answers_through_its_own_collection(self):
-        # The keyboard's control collection is 0059:0001, not a vendor page, so the
-        # probe order (which ranks 0001/ff00 first) must still reach it.
+        # The keyboard answers on a control collection that is not a vendor page, so
+        # the probe order (which ranks 0001/ff00 first) must still reach it. The fake's
+        # page 0059 is a stand-in: the unit test only pins that ranking does not filter.
         e = entry(0x025C, b"kbd", "Razer BlackWidow V3 Pro", iface=3, page=0x0059)
         mouse = FakeMouse(tid=0x9F, raw_level=0xB5, charging=1)      # 0xB5 -> 71%
         out = self.poll([e], {b"kbd": mouse})

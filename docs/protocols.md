@@ -1,6 +1,6 @@
 # Protocols
 
-How each device's battery is read - one section per device, linked from the support table in
+How each device's battery level is read - one section per device, linked from the support table in
 the [README](../README.md#supported-devices). These are the implementation notes: what is sent,
 what comes back, and where each protocol was taken from.
 

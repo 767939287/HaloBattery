@@ -41,6 +41,19 @@ KNOWN = {
     0x0556: ("Razer BlackShark V2 Pro (2023)", 0x3F),
     0x0557: ("Razer BlackShark V2 Pro (2023)", 0x3F),
     0x00A4: ("Razer Mouse Dock Pro", 0x1F),
+    # ---- keyboards with a battery, from OpenRazer's keyboard driver (razerkbd_driver.c:
+    # razer_attr_read_charge_level). The wireless id is the HyperSpeed receiver, the
+    # wired id the keyboard on its cable (charging).
+    0x0290: ("Razer DeathStalker V2 Pro", 0x9F),
+    0x0292: ("Razer DeathStalker V2 Pro", 0x1F),
+    0x0296: ("Razer DeathStalker V2 Pro TKL", 0x9F),
+    0x0298: ("Razer DeathStalker V2 Pro TKL", 0x1F),
+    0x0271: ("Razer BlackWidow V3 Mini HyperSpeed", 0x9F),
+    0x0258: ("Razer BlackWidow V3 Mini HyperSpeed", 0x1F),
+    0x02BA: ("Razer BlackWidow V4 Mini HyperSpeed", 0x9F),
+    0x02B9: ("Razer BlackWidow V4 Mini HyperSpeed", 0x1F),
+    0x02D5: ("Razer BlackWidow V4 Tenkeyless HyperSpeed", 0x9F),
+    0x02D7: ("Razer BlackWidow V4 Tenkeyless HyperSpeed", 0x1F),
     # ---- mice, from OpenRazer (wired / wireless PIDs of one mouse share a name)
     0x001F: ("Razer Naga Epic", 0xFF),
     0x0024: ("Razer Mamba (2012)", 0xFF),
@@ -105,19 +118,6 @@ KNOWN = {
     0x00D4: ("Razer Basilisk Mobile", 0x1F),
     0x00D6: ("Razer Basilisk V3 Pro 35K Phantom Green", 0x1F),
     0x00D7: ("Razer Basilisk V3 Pro 35K Phantom Green", 0x1F),
-    # ---- keyboards with a battery, from OpenRazer's keyboard driver (razerkbd_driver.c:
-    # razer_attr_read_charge_level). The wireless id is the HyperSpeed receiver, the
-    # wired id the keyboard on its cable (charging).
-    0x0290: ("Razer DeathStalker V2 Pro", 0x9F),
-    0x0292: ("Razer DeathStalker V2 Pro", 0x1F),
-    0x0296: ("Razer DeathStalker V2 Pro TKL", 0x9F),
-    0x0298: ("Razer DeathStalker V2 Pro TKL", 0x1F),
-    0x0271: ("Razer BlackWidow V3 Mini HyperSpeed", 0x9F),
-    0x0258: ("Razer BlackWidow V3 Mini HyperSpeed", 0x1F),
-    0x02BA: ("Razer BlackWidow V4 Mini HyperSpeed", 0x9F),
-    0x02B9: ("Razer BlackWidow V4 Mini HyperSpeed", 0x1F),
-    0x02D5: ("Razer BlackWidow V4 Tenkeyless HyperSpeed", 0x9F),
-    0x02D7: ("Razer BlackWidow V4 Tenkeyless HyperSpeed", 0x1F),
 }
 
 # The keyboards above take the commands on one USB interface: OpenRazer sends them with

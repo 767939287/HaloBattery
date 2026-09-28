@@ -26,6 +26,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
   a game has already switched the controller, and the icon shows no level otherwise.
   **Preferences > PlayStation full mode (Bluetooth)** brings the old behaviour back for
   those who do not play such games. USB is unchanged.
+- HyperX Cloud III Wireless: a dongle that takes the battery request only as a feature
+  report ("Incorrect function" on a normal write) showed no level. The app now notices
+  the refused write and sends the request as a feature report, as intended.
 
 ## [1.12.0] - 2026-09-28
 

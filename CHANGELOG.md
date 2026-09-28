@@ -26,6 +26,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   a game has already switched the controller, and the icon shows no level otherwise.
   **Preferences > PlayStation full mode (Bluetooth)** brings the old behaviour back for
   those who do not play such games. USB is unchanged.
+- An 8BitDo Ultimate controller on its dock's 2.4 GHz dongle showed "on cable, charging"
+  while it was off the dock and off the cable (#110). The dongle tells XInput that the
+  controller is wired, but Windows.Gaming.Input says that its battery is discharging. The
+  app now believes the second: no "charging", and the icon shows no level, because the
+  dongle does not report a real one (it always says 100%).
 
 ## [1.12.0] - 2026-09-28
 

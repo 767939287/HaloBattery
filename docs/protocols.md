@@ -80,17 +80,29 @@ The same `b0` exchange as the other Nova headsets, asked for with report id `06`
 
 The battery command G-Helper uses: output report 0 `12 07` (65 bytes) on the vendor collection of interface 0, answered by a report echoing `12 07` with the battery in byte 5 (a percentage, or a level 0-4 on older models such as the Chakram and Keris Wireless) and charging in byte 10. 0 without charging is standby, not empty, so it shows nothing; `ff aa` (command not known) and an all-zero reply are not read as a level. Receiver and cable share one icon. The OMNI receiver and models with other layouts are not included. **Unverified** - no ASUS mouse was on hand
 
+### Corsair Dark Core RGB Pro SE
+
+**Connection:** 2.4 GHz dongle (1B1C:1B7F)
+
+The Dark Core / Ironclaw "nxp" protocol from ckb-next: a 64-byte packet `CMD_GET 0x0e` + `FIELD_BATTERY 0x50` answered with a level index into the five-step table {0, 15, 30, 50, 100}, so the level is shown as a gauge ("about 50%") and no charging state is reported. The wired id 1B1C:1B7E is left out. **Unverified** - no Corsair mouse was on hand; the collection (`ff42:0001`) comes from the reporter's dump in #56
+
 ### G-Wolves WARG, HTS Plus (Pro), HTXU, Lycan, Fenrir Pro / Asym, HTX Mini
 
 **Connection:** 8K receiver or USB cable
 
 The same feature report exchange as the WLmouse mice (`00 00 02 02 00 83` out, `a1 ... 83 <charging> <battery%>` back), which G-Wolves' web driver mouse.xyz uses for every mouse on this receiver. The request goes only to the collection that Windows reports with a 64-byte feature report (HidP_GetCaps), as the web driver chooses it. A sleeping mouse keeps its last value on a greyed icon. **Unverified** - no G-Wolves mouse was on hand
 
+### Hitscan Hyperlight
+
+**Connection:** 2.4 GHz receiver (3770:0200) or USB cable (3770:0100)
+
+The same 17-byte frames as the Pulsar / ATK / VXE row, on the vendor collection `ff02:0002`: [sopparus/hitscan-battery](https://github.com/sopparus/hitscan-battery) mapped them from USB captures of Hitscan Utility 1.0.2 (command 0x04, level in byte 6, charging in byte 7, millivolts in bytes 8-9) and reads them on Linux. Note the vendor application's own battery indicator is broken - it showed 100 % while the device answered 75 - so the raw byte is the truth. **Unverified** here: no Hyperlight was on hand, [so #105's reporter confirming the level](https://github.com/HeyOkay/HaloBattery/issues/105) would settle it
+
 ### LAMZU Maya X
 
 **Connection:** 8K dongle (373E:001E) or USB cable (373E:001C)
 
-The same feature report exchange as the WLmouse and G-Wolves mice (`00 00 02 02 00 83` out, `a1 00 02 02 00 83 <charging> <battery %>` back), on the vendor collection `ffff:0000` of interface 2 only; protocol from Sheroune/lamzu-battery-monitory (MIT). **Unverified** on hardware here
+The same feature report exchange as the WLmouse and G-Wolves mice (`00 00 02 02 00 83` out, `a1 00 02 02 00 83 <charging> <battery %>` back), on the vendor collection `ffff:0000` of interface 2 only; protocol from Sheroune/lamzu-battery-monitory (MIT). Confirmed on a Maya X on its 8K dongle
 
 ### MCHOSE A7 V2 Ultra
 
@@ -178,7 +190,19 @@ The transaction Lofree's own web driver (hyzen.lofree.tech) uses, on report 0x04
 
 HID++ 2.0 on the receiver's vendor interface: the device name (feature 0x0005) and the first battery feature the device supports (0x1004 unified battery, 0x1000 battery status or 0x1001 battery voltage; the G502 LIGHTSPEED reports voltage, converted to % with the Li-ion curve used by Solaar, the G502 X PLUS the unified battery percentage). The icon follows the device's unit id (feature 0x0003). Works alongside G HUB
 
+### Razer BlackWidow V3 Pro
+
+**Connection:** 2.4 GHz receiver (1532:025C), cable (1532:025A)
+
+The standard Razer commands: class `0x07` id `0x80` for the level (0-255, shown as a percentage) and id `0x84` for charging. The keyboard answers on its own control collection, not a `ff00` vendor page - the probe order's ranking is a preference, not a filter, so it reaches any collection that answers. From OpenRazer's keyboard driver: `razer_attr_read_charge_level()` reads the wireless id with transaction id `0x9F` and the wired id with `0x3F`, and `razer_get_report_params()` puts both on USB interface 2. **Unverified** - no Razer keyboard was on hand; the diagnostics name every interface/usage they try, so a dump from the reporter of #56 settles it
+
 ## Controllers
+
+### 8BitDo Pro 2, Pro 3, SN30 Pro, SF30 Pro in D-input mode
+
+**Connection:** Bluetooth (2DC8:6006 and the other ids in `providers/eightbitdo.py`) or USB
+
+Listened to, never written: byte 14 of the controller's enhanced input report (report 0x01 over Bluetooth, 0x04 over USB; bits 0-6 the level in %, bit 7 charging), as SDL reads it. The controller sends that report only after Steam or a game has switched it on, see the note below the table. In XInput mode these controllers are read as Xbox controllers. **Unverified** - no 8BitDo controller was on hand, so a level of 0 or above 100 is refused rather than shown
 
 ### GameSir G7 Pro; FlyDigi Vader Pro
 

@@ -138,6 +138,35 @@ def _clamp(v: int, lo: int, hi: int) -> int:
     return max(lo, min(v, hi)) if hi >= lo else lo
 
 
+def usable_area(work: Rect, taskbar: Optional[Rect]) -> Rect:
+    """The work area without the taskbar.
+
+    The monitor's work area leaves the taskbar out only while the taskbar reserves its
+    space. An auto-hide taskbar does not, and neither does the taskbar over a full
+    screen game after the Windows key brings it up: the work area is then the whole
+    screen, and a menu placed in it can open behind the taskbar. The taskbar's own
+    rectangle is cut off the side it sits on."""
+    left, top, right, bottom = work
+    if taskbar is None:
+        return work
+    tl, tt, tr, tb = taskbar
+    if tr <= left or tl >= right or tb <= top or tt >= bottom:
+        return work                                    # not on this area
+    if tr - tl > tb - tt:                              # horizontal taskbar
+        if tt > top:
+            bottom = min(bottom, tt)                   # at the bottom
+        else:
+            top = max(top, tb)                         # at the top
+    else:                                              # vertical taskbar
+        if tl > left:
+            right = min(right, tl)                     # on the right
+        else:
+            left = max(left, tr)                       # on the left
+    if right <= left or bottom <= top:
+        return work                                    # a taskbar that fills the area
+    return left, top, right, bottom
+
+
 def place_menu(cx: int, cy: int, w: int, h: int, work: Rect,
                taskbar: Optional[Rect] = None, scale: float = 1.0) -> Tuple[int, int]:
     """The menu's top-left corner for a click at (cx, cy), the way Windows 11 opens
@@ -275,6 +304,8 @@ class _Win32:
         u.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
         u.GetForegroundWindow.restype = ctypes.c_void_p
         u.SetForegroundWindow.argtypes = [ctypes.c_void_p]
+        u.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
+                                   ctypes.c_int, ctypes.c_int, wintypes.UINT]
         u.GetAsyncKeyState.restype = ctypes.c_short
         u.GetAsyncKeyState.argtypes = [ctypes.c_int]
         self.swca = getattr(u, "SetWindowCompositionAttribute", None)
@@ -370,6 +401,15 @@ class _Win32:
     def activate(self, hwnd: int) -> None:
         try:
             self.user32.SetForegroundWindow(hwnd)
+        except Exception:
+            pass
+
+    def to_top(self, hwnd: int) -> None:
+        """Put a topmost window in front of the other topmost windows, without moving,
+        resizing or activating it."""
+        try:
+            # HWND_TOPMOST, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+            self.user32.SetWindowPos(hwnd, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
         except Exception:
             pass
 
@@ -617,6 +657,7 @@ class FlyoutHost:
         else:
             work = (0, 0, self._root.winfo_screenwidth(), self._root.winfo_screenheight())
             scale = 1.0
+        work = usable_area(work, taskbar)            # submenus use it too (panel.work)
         style = self.style(scale, apps_use_light_theme())
         panel = _Panel(self, menu, style, None, None)
         if not panel.rows:
@@ -855,6 +896,7 @@ class _Panel:
         self.child_row: Optional[int] = None
         self.win = self.canvas = self.catcher = self.overlay = self.ocanvas = None
         self.hwnd = 0
+        self._overlay_hwnd = 0
         self._hwnds: List[int] = []
         self._overlay_geo = None
         self._fade_start = 0.0
@@ -919,6 +961,7 @@ class _Panel:
                 pass
         self._hwnds = list(frames.values())
         self.hwnd = frames.get("win", 0)
+        self._overlay_hwnd = frames.get("overlay", 0)
         if w is None or not self.hwnd:
             return
         c = self.style.colours
@@ -1092,9 +1135,23 @@ class _Panel:
                 self.ocanvas.delete("all")
                 rounded_rect(self.ocanvas, 0, 0, w, h, self.style.px(HOVER_RADIUS), c["hover"])
                 self._overlay_geo = geo
+                # Tk moves the window later, when idle; raising it before that would
+                # make Tk keep the old position
+                ov.update_idletasks()
+            self._raise_overlay()
             ov.attributes("-alpha", c["hover_alpha"])
         except Exception:
             pass
+
+    def _raise_overlay(self) -> None:
+        """The highlight in front of the panel. Opening the menu gives the panel the focus,
+        which brings it to the front, and its acrylic then hides a highlight behind it.
+        Tk's lift() is not used: on these borderless windows it also moved the highlight
+        back to the corner of the panel."""
+        w = self.host._w
+        hwnd = self._overlay_hwnd
+        if w is not None and hwnd:
+            w.to_top(hwnd)
 
     def _fade_running(self) -> bool:
         return (time.perf_counter() - self._fade_start) * 1000 < FADE_MS

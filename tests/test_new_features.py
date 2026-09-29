@@ -99,25 +99,30 @@ class DeviceTypeTests(HideRenameTestCase):
         self.assertIn("razer", app.cfg["disabled_providers"])
         self.assertFalse(item(item(prefs, "Device types").submenu, "Razer mice and headsets").checked)
 
-    def test_playstation_bluetooth_switch_follows_the_provider(self):
+    def test_playstation_full_mode_stays_in_preferences(self):
+        # #96 is handled by "PlayStation full mode (Bluetooth)" (off = listen only), so
+        # Device types has no Bluetooth switch of its own for PlayStation controllers
         app = poll_app()
-        types = item(item(app.build_menu(None), "Preferences").submenu, "Device types").submenu
-        ps_bt = next(i for i in types.items if "PlayStation over Bluetooth" in i.text)
-        self.assertTrue(ps_bt.checked and ps_bt.enabled)
-        ps_bt(FakeTrayIcon())
-        self.assertFalse(app.cfg["playstation_bluetooth"])
-        app.toggle_provider("playstation")
-        types = item(item(app.build_menu(None), "Preferences").submenu, "Device types").submenu
-        ps_bt = next(i for i in types.items if "PlayStation over Bluetooth" in i.text)
-        self.assertFalse(ps_bt.enabled)
+        prefs = item(app.build_menu(None), "Preferences").submenu
+        types = item(prefs, "Device types").submenu
+        self.assertFalse(any("Bluetooth" in i.text for i in types.items))
+        self.assertIn("PlayStation full mode (Bluetooth)", [i.text for i in prefs.items])
 
-    def test_setting_reaches_the_playstation_provider(self):
-        app = poll_app({"playstation_bluetooth": False})
+    def test_full_mode_setting_reaches_the_playstation_provider(self):
+        app = poll_app({"playstation_full_mode": True})
         ps = playstation.PlayStationProvider()
         with mock.patch.object(ps, "poll", return_value=[]):
             app.providers = [ps]
             app.poll_once()
-        self.assertFalse(ps.read_bluetooth)
+        self.assertTrue(ps.switch_bluetooth)
+
+    def test_disabled_playstation_is_not_polled_even_in_full_mode(self):
+        app = poll_app({"playstation_full_mode": True, "disabled_providers": ["playstation"]})
+        ps = playstation.PlayStationProvider()
+        with mock.patch.object(ps, "poll", return_value=[]) as p:
+            app.providers = [ps]
+            app.poll_once()
+        self.assertEqual(p.call_count, 0)
 
     def test_pending_of_a_disabled_provider_does_not_speed_up_polling(self):
         app = poll_app({"disabled_providers": ["razer"], "interval": 60})
@@ -128,34 +133,6 @@ class DeviceTypeTests(HideRenameTestCase):
         app.wake = mock.Mock(wait=lambda t: waits.append(t) or True)
         app.wait_next(sig=None)
         self.assertEqual(waits, [2.5])          # not the 3 s re-check
-
-
-class PlayStationBluetoothTests(unittest.TestCase):
-    BT_PATH = b"\\\\?\\hid#{00001124-0000-1000-8000-00805f9b34fb}_vid&0002054c_pid&0ce6#x"
-    USB_PATH = b"\\\\?\\hid#vid_054c&pid_0ce6&mi_03#y"
-
-    def run_poll(self, read_bluetooth, path):
-        ps = playstation.PlayStationProvider()
-        ps.read_bluetooth = read_bluetooth
-        infos = [{"product_id": 0x0CE6, "serial_number": "aa:bb", "path": path,
-                  "usage_page": 1, "usage": 5, "interface_number": 3}]
-        with mock.patch.object(playstation, "hid", object()), \
-                mock.patch.object(playstation.hidlist, "enumerate", return_value=infos), \
-                mock.patch.object(ps, "_read", return_value=(70, False)) as read:
-            res = ps.poll()
-        return res, read.call_count
-
-    def test_bluetooth_off_leaves_the_controller_alone(self):
-        res, reads = self.run_poll(False, self.BT_PATH)
-        self.assertEqual((res, reads), ([], 0))
-
-    def test_bluetooth_on_reads_it(self):
-        res, reads = self.run_poll(True, self.BT_PATH)
-        self.assertEqual([s.level for s in res], [70])
-
-    def test_usb_is_read_either_way(self):
-        res, _ = self.run_poll(False, self.USB_PATH)
-        self.assertEqual([s.level for s in res], [70])
 
 
 # ---------------------------------------------------------------- low per device

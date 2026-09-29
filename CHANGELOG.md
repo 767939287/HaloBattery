@@ -70,6 +70,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   80% a poll later). A 0% in the first 90 seconds is now shown as "battery level not
   reported yet", and the app re-checks every 3 seconds until the real level arrives
   instead of waiting a full poll interval. After 90 seconds 0% is believed.
+- A Razer mouse could show "no link (off or asleep)" while in use, when Synapse or other
+  RGB software was sending lighting frames to it (#108). Every reply the app read was an
+  answer to the other app, and the app took that as a success without a level. It now
+  asks again up to three times, keeps the last level greyed out, and the diagnostics say
+  that another app is using the device.
 
 ## [1.12.0] - 2026-09-28
 

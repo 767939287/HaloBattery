@@ -20,8 +20,10 @@ from providers import razer as R  # noqa: E402
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from test_razer import FakeBus, FakeMouse  # noqa: E402
 
-# pid: (transaction id, report_index); 025A / 025C (BlackWidow V3 Pro) are in PR #112
+# pid: (transaction id, report_index)
 OPENRAZER_KEYBOARDS = {
+    0x025A: (0x3F, 2),   # BLACKWIDOW_V3_PRO_WIRED (from main, #112)
+    0x025C: (0x9F, 2),   # BLACKWIDOW_V3_PRO_WIRELESS (from main, #112)
     0x0258: (0x1F, 3),   # BLACKWIDOW_V3_MINI_HYPERSPEED_WIRED
     0x0271: (0x9F, 3),   # BLACKWIDOW_V3_MINI_HYPERSPEED_WIRELESS
     0x0290: (0x9F, 2),   # DEATHSTALKER_V2_PRO_WIRELESS

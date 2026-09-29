@@ -14,6 +14,33 @@ and the project follows [Semantic Versioning](https://semver.org/).
   XInput mode these controllers already worked. Unverified on hardware here.
 - LAMZU Maya X: confirmed on a real mouse on its 8K dongle with 1.12.0, so it is no longer
   marked unverified.
+- **Device types** in Preferences: turn off any brand or device family (Razer, Logitech,
+  PlayStation controllers, ...). A type that is off is not polled and its devices are not
+  opened; its icons go away at once.
+- **Low battery alert at** in the menu of a device: an alert level for that device only,
+  or Default to follow Preferences. The red ring of the icon follows it too.
+- **Estimated time left** in the tooltip ("about 5 h of use left"), from a least-squares
+  fit of the level against the time the device was awake and on battery since its last
+  charge. Time asleep, switched off or with the PC suspended does not count. No estimate
+  until 30 minutes of use and a 3% drop; kept in `%APPDATA%\HaloBattery\history.json`
+  so it survives a restart. Can be turned off in Preferences.
+- **Percentage in the icon** in Preferences: the level as a number in the ring instead of
+  the pictogram, sized to stay inside the ring ("100" included) and amber or red like the
+  arc when the battery is low. Devices that only report rough steps keep their pictogram.
+- **Quiet while gaming** in Preferences (on by default): while a full-screen app is in
+  front (`SHQueryUserNotificationState`), notifications are held and shown when it
+  closes, one per device and kind, and the poll interval becomes 5 minutes so the app
+  talks to the devices less during a game (#76). A plug-in still polls at once.
+- **Status file for other apps** in Preferences (off by default):
+  `%APPDATA%\HaloBattery\status.json`, rewritten after every poll (atomically), with each
+  device's name, level, charging, online, kind, alert level, seconds of use left and
+  tooltip text, for Rainmeter, Stream Deck or scripts.
+- Audeze Maxwell: a **stuck dongle** is recognised. An Xbox dongle (`3329:4B18`) that said a
+  headset was linked, in PC mode with the headset on and playing audio, answered every
+  packet with an empty echo of the request (`07 00 80 00 ...`), so no battery ever arrived
+  and there was no icon; unplugging the dongle and plugging it back in fixed it at once.
+  After two such polls in a row the headset now gets a greyed icon that says to replug the
+  dongle, and the diagnostics say what was seen. This may be HeadsetControl #460.
 
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic
@@ -38,6 +65,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   a game has already switched the controller, and the icon shows no level otherwise.
   **Preferences > PlayStation full mode (Bluetooth)** brings the old behaviour back for
   those who do not play such games. USB is unchanged.
+- Audeze Maxwell: no more "Low battery, 0% left" when the headset is switched on. Right
+  after power-on it reports 0% for a moment (measured on an Xbox dongle: 0%, then the real
+  80% a poll later). A 0% in the first 90 seconds is now shown as "battery level not
+  reported yet", and the app re-checks every 3 seconds until the real level arrives
+  instead of waiting a full poll interval. After 90 seconds 0% is believed.
 
 ## [1.12.0] - 2026-09-28
 

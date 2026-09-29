@@ -6,6 +6,16 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-09-29
+
+A new Windows 11 style tray menu and a batch of tray features: turn device types off,
+an alert level per device, estimated time left, the percentage in the icon, quiet while
+gaming and a status file for other apps. PS4 / PS5 controllers over Bluetooth no longer
+break DirectInput games (#96), and 8BitDo controllers in D-input mode are read the same
+listen-only way. New devices: Corsair Dark Core RGB Pro SE, Razer BlackWidow V3 Pro,
+Hitscan Hyperlight, HyperX Cloud Alpha 2 and Angry Miao AM Infinity 8K, plus many fixes
+from contributors' reviews. Notifications are now titled "HaloBattery".
+
 ### Added
 - 8BitDo Pro 2, Pro 3, SN30 Pro and SF30 Pro in D-input mode (#101). The level is read
   from the controller's enhanced report while Steam or a game has switched it on; the app
@@ -62,6 +72,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   reads from status report 0x05. No charging state is reported. **Unverified**
   here: the exchange is confirmed on the reference project's own unit, so the
   layout stands until the reporter of #72 confirms it on the AM Infinity.
+- **Hitscan Hyperlight** over its receiver (3770:0200) and on the cable (3770:0100):
+  the same 17-byte frame the Pulsar / ATK / VXE mice use, from @sopparus's captures, notes and
+  Linux reader ([sopparus/hitscan-battery](https://github.com/sopparus/hitscan-battery)).
+  Unverified: no Hyperlight was on hand, so [#105](https://github.com/HeyOkay/HaloBattery/issues/105)
+  will confirm.
 
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic
@@ -314,11 +329,6 @@ own one, please tell us whether the level matches.
   DeathAdder V3 HyperSpeed, Basilisk Mobile, Orochi V2, Atheris and the older Mamba / Lancehead
   mice. Before, a mouse without "wireless" or "HyperSpeed" in its name was skipped.
   `tests/test_razer.py` checks the table against a copy of OpenRazer's list.
-- **Hitscan Hyperlight** over its receiver (3770:0200) and on the cable (3770:0100):
-  the same 17-byte frame the Pulsar / ATK / VXE mice use, from @sopparus's captures, notes and
-  Linux reader ([sopparus/hitscan-battery](https://github.com/sopparus/hitscan-battery)).
-  Unverified: no Hyperlight was on hand, so [#105](https://github.com/HeyOkay/HaloBattery/issues/105)
-  will confirm.
 
 ### Changed
 - **The keyboard pictogram is a single keycap with a K.** The old one, a whole keyboard with
@@ -769,7 +779,8 @@ First public release.
   in or unplugged.
 - Settings and the autostart entry are migrated from the app's earlier name, Battery Tray.
 
-[Unreleased]: ../../compare/v1.12.0...HEAD
+[Unreleased]: ../../compare/v1.13.0...HEAD
+[1.13.0]: ../../compare/v1.12.0...v1.13.0
 [1.12.0]: ../../compare/v1.11.0...v1.12.0
 [1.11.0]: ../../compare/v1.10.1...v1.11.0
 [1.10.1]: ../../compare/v1.10.0...v1.10.1

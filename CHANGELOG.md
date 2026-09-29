@@ -7,7 +7,6 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
-
 - **Hide this device** clicked while the app was reading the devices could bring the
   icon of the hidden device back, or stop that reading halfway so the "no devices" icon
   did not show. Hiding and the device update now wait for each other.

@@ -75,7 +75,7 @@ Bluetooth devices: Halo Battery shows the level that Windows itself reports. If 
    python -m unittest discover -s tests
    ```
 
-5. Add a line to `CHANGELOG.md` under `[Unreleased]`, and a row to the supported devices table.
+5. Add a line to `CHANGELOG.md` under `[Unreleased]`, a row to the table in `docs/devices.md`, and a section in `docs/protocols.md` that tells how the device is read and names the source.
 6. In the pull request description, write:
    - which issue it closes;
    - the source of the protocol;

@@ -95,6 +95,14 @@ and the project follows [Semantic Versioning](https://semver.org/).
   re-read, at most once every `SHORT_RETRY` (30 s) so that a permanently unopenable collection
   cannot turn every call into a full enumeration. Reported by @ahmedkhursheed23 in
   [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
+- **The Bluetooth watcher now notices a stalled PowerShell instead of pretending to be
+  healthy.** Its output was read with `for line in proc.stdout`, which parks forever on a child
+  that has wedged inside a WinRT call: no snapshot arrives, `failed` stays False, `running()`
+  keeps answering True, and the app never falls back to its once-a-minute polling. The child is
+  read through a queue with a watchdog now (the script's slowest cadence is a snapshot every
+  60 s, so 180 s of silence is a fault); it is killed and restarted, and two stalls in a row make
+  the watcher give up so the fallback happens. Reported by @ahmedkhursheed23 in
+  [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
 
 ## [1.12.0] - 2026-09-28
 

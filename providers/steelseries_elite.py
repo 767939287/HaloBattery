@@ -17,7 +17,12 @@ Sources:
     the other (Col02).
   * #138: on a real station the request is answered by the direct reply
     `01 b0 00 00 01 00 1f 64 ...` on 0xFFC0:0x0001 while SteelSeries GG showed 31 %:
-    byte 6 = 0x1f = 31, as the layout above says. No 07 b7 frame came.
+    byte 6 = 0x1f = 31, as the layout above says. No 07 b7 frame came. With build
+    1.12.0.7 the reporter then confirmed on the same station that the level matches
+    SteelSeries GG and that charging works (the icon animates). A switched-off headset
+    shows 0 %, and SteelSeries GG shows 0 % in its tray for the same state: the off
+    state does not arrive as power code 01 on this station, so this is parity with the
+    vendor rather than a gap.
 
 The exchange:
   * request: 64-byte output report 01 b0 00 ... (01 is the report id)
@@ -28,8 +33,8 @@ The exchange:
       power 01 = headset offline, 02 = charging on the cable, 04 = standby, 08 = online
   * the direct reply 01 b0 <bt power> <bt call> <bt mode> <bt status> <headset level>
       <spare level> ... byte 14 <power, the 07 b5 codes> byte 15 <charging, the 07 b7
-      codes>: the headset level (byte 6) is the one #138 confirmed; byte 14 and 15 use
-      the codes of the frames below
+      codes>: the headset level (byte 6) and the charging state are the ones #138
+      confirmed; byte 14 and 15 use the codes of the frames above
   * the station also sends other 07 xx frames (settings)
   * the station can push a 07 b7 without being asked; that is read as well
 

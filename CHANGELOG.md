@@ -11,11 +11,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
   headset through its base station, without SteelSeries GG. The app sends the read-only
   status request `01 b0` to interface 3 and reads the station's direct `01 b0` reply
   (headset level in byte 6, power state in byte 14, charging in byte 15), or the
-  `07 b7` / `07 b5` frames. A headset that is off shows no level; the spare battery in
+  `07 b7` / `07 b5` frames. A headset reported as off shows no level; the spare battery in
   the station is not shown. The request comes from elegos/Linux-Arctis-Manager (a USB
   capture of SteelSeries GG on Windows), the reply layout from loteran/Arctis-Sound-Manager
-  (SteelSeries GG's own description of the station). **Level verified on hardware** in
-  #138: 31 %, the same as SteelSeries GG. Charging and "off" are not tested yet.
+  (SteelSeries GG's own description of the station). **Level and charging verified on
+  hardware** in #138: the level matches SteelSeries GG and the charging animation works.
+  A switched-off headset shows 0 %, as SteelSeries GG does in its tray (the off state does
+  not arrive as power code `01` on this station).
 
 ## [1.13.0] - 2026-09-29
 

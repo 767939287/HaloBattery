@@ -76,7 +76,7 @@ from providers import hidlist  # noqa: E402
 from providers import (AmInfinityProvider, AstroProvider, AsusProvider,  # noqa: E402
                        AudezeProvider, BarracudaProvider, BluetoothProvider, CorsairProvider, DeviceStatus,
                        EightBitDoProvider,
-                       GWolvesProvider, HyperXCloud3Provider, HyperXProvider, JblProvider,
+                       GWolvesProvider, HyperXAlpha2Provider, HyperXCloud3Provider, HyperXProvider, JblProvider,
                        KeychronProvider, LamzuProvider, LofreeProvider, LogitechProvider,
                        MchoseProvider, NintendoProvider, PlayStationProvider, PulsarProvider,
                        RazerProvider, SteelSeriesProvider, WLmouseProvider, XInputProvider)
@@ -123,6 +123,7 @@ PROVIDER_LABELS = {
     "corsair": "Corsair headsets",
     "gwolves": "G-Wolves mice",
     "hyperx": "HyperX Cloud II Wireless",
+    "hyperx_alpha2": "HyperX Cloud Alpha 2",
     "hyperx_cloud3": "HyperX Cloud III Wireless",
     "jbl": "JBL Quantum",
     "keychron": "Keychron",
@@ -142,7 +143,8 @@ PROVIDER_LABELS = {
 
 def make_providers() -> list:
     return [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
-            HyperXCloud3Provider(), HyperXProvider(), KeychronProvider(), PulsarProvider(),
+            HyperXAlpha2Provider(), HyperXCloud3Provider(), HyperXProvider(),
+            KeychronProvider(), PulsarProvider(),
             JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
             PlayStationProvider(), EightBitDoProvider(), BarracudaProvider(), NintendoProvider(),
             AsusProvider(), GWolvesProvider(), LofreeProvider(), AstroProvider(), CorsairProvider(),

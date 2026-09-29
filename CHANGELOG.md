@@ -41,6 +41,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   and there was no icon; unplugging the dongle and plugging it back in fixed it at once.
   After two such polls in a row the headset now gets a greyed icon that says to replug the
   dongle, and the diagnostics say what was seen. This may be HeadsetControl #460.
+- Corsair Dark Core RGB Pro SE: the battery over its 2.4 GHz dongle (1B1C:1B7F),
+  through the Dark Core / Ironclaw "nxp" protocol from ckb-next. Its five-step
+  level is shown as a gauge ("about 50%") and no charging state is reported.
+  **Unverified** here: no Corsair mouse was on hand, so the collection and the
+  offsets are the reference's until the reporter of #56 confirms.
 
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic

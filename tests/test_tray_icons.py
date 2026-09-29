@@ -140,9 +140,11 @@ class RenderOnceTests(unittest.TestCase):
 
     def setUp(self):
         self.calls = []
+        self.texts = []
 
         def fake_render(*a, **k):
             self.calls.append(a[4] if len(a) > 4 else k.get("light_taskbar"))
+            self.texts.append(k.get("text", ""))
             return object()
 
         p = mock.patch.object(hb.icons, "render", fake_render)
@@ -195,6 +197,17 @@ class RenderOnceTests(unittest.TestCase):
         self.ic.update(self.charging(50))
         self.ic.update(self.charging(50))
         self.assertEqual(self.calls, [])
+
+    def test_the_percentage_in_the_icon_is_drawn_in_both_colours(self):
+        self.app.cfg["percent_in_icon"] = True
+        self.ic.update(dev())
+        self.app.light_taskbar = True
+        self.ic.update(dev())
+        self.assertEqual(self.calls, [False, True])
+        self.assertEqual(self.texts, [str(dev().level)] * 2)
+        self.app.light_taskbar = False
+        self.ic.update(dev())
+        self.assertEqual(len(self.calls), 2)   # the other colour was kept
 
     def test_the_cache_keeps_one_state(self):
         self.ic.update(self.charging(50))

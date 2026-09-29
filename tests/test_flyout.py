@@ -7,6 +7,7 @@ Run from the repository root:
 """
 import os
 import sys
+import types
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -93,6 +94,79 @@ class PlacementTests(unittest.TestCase):
     def test_submenu_stays_on_the_screen(self):
         x, y = flyout.place_submenu(1000, 1250, 1000, 200, 150, WORK)
         self.assertEqual(y, WORK[3] - 150)
+
+
+class TaskbarAreaTests(unittest.TestCase):
+    """The menu and its submenus stay off the taskbar even when the work area includes
+    it: an auto-hide taskbar, or the taskbar over a full screen game (reported with
+    Dota 2: the bottom rows of the menu were behind the taskbar)."""
+    SCREEN = (0, 0, 1920, 1080)
+
+    def test_bottom_taskbar_is_cut_off(self):
+        self.assertEqual(flyout.usable_area(self.SCREEN, (0, 1032, 1920, 1080)), (0, 0, 1920, 1032))
+
+    def test_top_left_and_right_taskbars(self):
+        self.assertEqual(flyout.usable_area(self.SCREEN, (0, 0, 1920, 48)), (0, 48, 1920, 1080))
+        self.assertEqual(flyout.usable_area(self.SCREEN, (0, 0, 48, 1080)), (48, 0, 1920, 1080))
+        self.assertEqual(flyout.usable_area(self.SCREEN, (1872, 0, 1920, 1080)), (0, 0, 1872, 1080))
+
+    def test_a_work_area_without_the_taskbar_is_unchanged(self):
+        # the usual case: Windows already left the taskbar out
+        self.assertEqual(flyout.usable_area(WORK, (0, 1032, 1920, 1080)), WORK)
+        self.assertEqual(flyout.usable_area(WORK, None), WORK)
+
+    def test_a_hidden_auto_hide_taskbar_leaves_its_visible_edge_out(self):
+        # hidden, it keeps a 2 px edge on the screen
+        self.assertEqual(flyout.usable_area(self.SCREEN, (0, 1078, 1920, 1126)), (0, 0, 1920, 1078))
+
+    def test_a_taskbar_on_another_monitor_is_ignored(self):
+        self.assertEqual(flyout.usable_area(self.SCREEN, (1920, 1032, 3840, 1080)), self.SCREEN)
+
+    def test_a_long_submenu_opens_above_the_taskbar(self):
+        # Preferences near the bottom of a full screen game: 500 px tall
+        area = flyout.usable_area(self.SCREEN, (0, 1032, 1920, 1080))
+        x, y = flyout.place_submenu(1000, 1250, 900, 250, 500, area)
+        self.assertLessEqual(y + 500, 1032)
+
+    def test_the_menu_passes_the_area_without_the_taskbar_to_its_submenus(self):
+        import types
+        seen = {}
+
+        class FakeWin32:
+            def monitor(self, x, y):
+                return (0, 0, 1920, 1080), 1.0          # the work area includes the taskbar
+
+            def taskbar(self, x, y):
+                return (0, 1032, 1920, 1080)
+
+            def buttons_down(self):
+                return False
+
+            def activate(self, hwnd):
+                pass
+
+        class FakePanel:
+            def __init__(self, host, menu, style, parent, row):
+                self.rows, self.w, self.h, self.hwnd = [1], 250, 300, 1
+                self.win = types.SimpleNamespace(focus_force=lambda: None)
+
+            def open(self, x, y):
+                seen["y"] = y
+
+            def destroy(self):
+                pass
+
+        host = flyout.FlyoutHost(FakeWin32())
+        host._root = types.SimpleNamespace(after=lambda *a: None, after_cancel=lambda *a: None)
+        host.style = lambda scale, light: types.SimpleNamespace(scale=scale)
+        saved = flyout._Panel
+        flyout._Panel = FakePanel
+        try:
+            host._show(None, None, (1500, 1050))
+        finally:
+            flyout._Panel = saved
+        self.assertEqual(host.panels[0].work, (0, 0, 1920, 1032))
+        self.assertLessEqual(seen["y"] + 300, 1032)
 
 
 class CounterTests(unittest.TestCase):
@@ -196,6 +270,85 @@ class LayoutTests(unittest.TestCase):
         rows = flyout.build_rows(Menu(Item("x" * 40, lambda: None)))
         w, _h = flyout.layout(rows, FakeStyle(), measure, lambda g: 10)
         self.assertEqual(w, 4 + 8 + 24 + 280 + 10 + 4)
+
+
+class FakeWindow:
+    """Records what the highlight code does to a tkinter window."""
+
+    def __init__(self):
+        self.calls = []
+
+    def attributes(self, name, value):
+        self.calls.append((name, value))
+
+    def geometry(self, geo):
+        self.calls.append(("geometry", geo))
+
+    def update_idletasks(self):
+        self.calls.append(("idle",))
+
+    def configure(self, **kw):
+        pass
+
+    def delete(self, *a):
+        pass
+
+    def create_rectangle(self, *a, **kw):
+        pass
+
+    def create_oval(self, *a, **kw):
+        pass
+
+
+class HighlightTests(unittest.TestCase):
+    """The highlight is a window of its own. Opening the menu brings the panel to the
+    front (it takes the focus), and the panel's acrylic then hides a highlight that is
+    behind it, so the highlight is raised each time it is shown."""
+
+    def panel(self, box):
+        p = object.__new__(flyout._Panel)
+        p.overlay, p.ocanvas = FakeWindow(), FakeWindow()
+        self.raised = []
+
+        def to_top(hwnd):
+            self.raised.append(hwnd)
+            p.overlay.calls.append(("raise", hwnd))
+        p.host = types.SimpleNamespace(_w=types.SimpleNamespace(to_top=to_top))
+        p._overlay_hwnd = 0x1234
+        p.style = FakeStyle()
+        p.style.colours = {"hover": "#ffffff", "hover_alpha": 0.1}
+        p.x, p.y, p._overlay_geo = 100, 200, None
+        p.highlight_box = lambda: box
+        p._fade_running = lambda: False
+        return p
+
+    def test_a_shown_highlight_is_raised_over_the_panel(self):
+        p = self.panel((4, 5, 200, 34))
+        p.update_highlight()
+        self.assertEqual(self.raised, [0x1234])
+        self.assertEqual(p.overlay.calls[-1], ("-alpha", 0.1))
+        # moved first, and the move applied before the raise: raising a window whose
+        # move Tk has not made yet keeps it in the panel's corner
+        self.assertEqual(p.overlay.calls, [("geometry", "196x29+104+205"), ("idle",),
+                                           ("raise", 0x1234), ("-alpha", 0.1)])
+
+    def test_the_same_box_again_is_raised_again(self):
+        p = self.panel((4, 5, 200, 34))
+        p.update_highlight()
+        p.update_highlight()                       # e.g. after a click brought the panel up
+        self.assertEqual(self.raised, [0x1234, 0x1234])
+
+    def test_a_hidden_highlight_is_not_raised(self):
+        p = self.panel(None)
+        p.update_highlight()
+        self.assertEqual(p.overlay.calls, [("-alpha", 0.0)])
+        self.assertEqual(self.raised, [])
+
+    def test_no_win32_helper_is_not_an_error(self):
+        p = self.panel((4, 5, 200, 34))
+        p.host = types.SimpleNamespace(_w=None)     # not Windows
+        p.update_highlight()
+        self.assertEqual(p.overlay.calls[-1], ("-alpha", 0.1))
 
 
 if __name__ == "__main__":

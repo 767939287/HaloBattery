@@ -85,6 +85,16 @@ and the project follows [Semantic Versioning](https://semver.org/).
   controller is wired, but Windows.Gaming.Input says that its battery is discharging. The
   app now believes the second: no "charging", and the icon shows no level, because the
   dongle does not report a real one (it always says 100%).
+- **A device list that hidapi returned incomplete is no longer cached for the rest of the
+  session.** `hidlist.enumerate()` caches its result against the set of HID paths, and only
+  re-reads when that set changes - but hidapi *opens* every device it lists, so a collection it
+  could not open at that moment is simply missing from the result, with the path set unchanged.
+  The short list was then served from the cache indefinitely: measured on this machine, 9 of 10
+  present collections came back for 5 calls in a row with a single hidapi call, and only an
+  unplug cleared it. A result with fewer entries than the vendor has present interfaces is now
+  re-read, at most once every `SHORT_RETRY` (30 s) so that a permanently unopenable collection
+  cannot turn every call into a full enumeration. Reported by @ahmedkhursheed23 in
+  [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
 
 ## [1.12.0] - 2026-09-28
 

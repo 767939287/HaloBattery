@@ -6,6 +6,42 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- 8BitDo Pro 2, Pro 3, SN30 Pro and SF30 Pro in D-input mode (#101). The level is read
+  from the controller's enhanced report while Steam or a game has switched it on; the app
+  never switches it itself, because that mode hides the controller from DirectInput games
+  until it is turned off. Otherwise the icon shows the controller without a level. In
+  XInput mode these controllers already worked. Unverified on hardware here.
+- LAMZU Maya X: confirmed on a real mouse on its 8K dongle with 1.12.0, so it is no longer
+  marked unverified.
+- **Device types** in Preferences: turn off any brand or device family (Razer, Logitech,
+  PlayStation controllers, ...). A type that is off is not polled and its devices are not
+  opened; its icons go away at once.
+- **Low battery alert at** in the menu of a device: an alert level for that device only,
+  or Default to follow Preferences. The red ring of the icon follows it too.
+- **Estimated time left** in the tooltip ("about 5 h of use left"), from a least-squares
+  fit of the level against the time the device was awake and on battery since its last
+  charge. Time asleep, switched off or with the PC suspended does not count. No estimate
+  until 30 minutes of use and a 3% drop; kept in `%APPDATA%\HaloBattery\history.json`
+  so it survives a restart. Can be turned off in Preferences.
+- **Percentage in the icon** in Preferences: the level as a number in the ring instead of
+  the pictogram, sized to stay inside the ring ("100" included) and amber or red like the
+  arc when the battery is low. Devices that only report rough steps keep their pictogram.
+- **Quiet while gaming** in Preferences (on by default): while a full-screen app is in
+  front (`SHQueryUserNotificationState`), notifications are held and shown when it
+  closes, one per device and kind, and the poll interval becomes 5 minutes so the app
+  talks to the devices less during a game (#76). A plug-in still polls at once.
+- **Status file for other apps** in Preferences (off by default):
+  `%APPDATA%\HaloBattery\status.json`, rewritten after every poll (atomically), with each
+  device's name, level, charging, online, kind, alert level, seconds of use left and
+  tooltip text, for Rainmeter, Stream Deck or scripts.
+- Audeze Maxwell: a **stuck dongle** is recognised. An Xbox dongle (`3329:4B18`) that said a
+  headset was linked, in PC mode with the headset on and playing audio, answered every
+  packet with an empty echo of the request (`07 00 80 00 ...`), so no battery ever arrived
+  and there was no icon; unplugging the dongle and plugging it back in fixed it at once.
+  After two such polls in a row the headset now gets a greyed icon that says to replug the
+  dongle, and the diagnostics say what was seen. This may be HeadsetControl #460.
+
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic
   (blurred, translucent) background, rounded corners on Windows 11 and the light or dark
@@ -17,6 +53,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
   menu stays open while you change them, and the mouse wheel works on them too.
 
 ### Fixed
+- Notifications were titled "Python" instead of the app's name: the app now sets its
+  own app id and registers the name "HaloBattery" (and its icon) for the notification
+  header, per user, no admin rights.
 - The menu text was small and blurry on displays scaled above 100 %: the app is now DPI
   aware, so the menu and the tray icons are drawn at the display's real resolution.
 - PS4 / PS5 controllers over Bluetooth stopped working in some games (DirectInput, for
@@ -26,6 +65,44 @@ and the project follows [Semantic Versioning](https://semver.org/).
   a game has already switched the controller, and the icon shows no level otherwise.
   **Preferences > PlayStation full mode (Bluetooth)** brings the old behaviour back for
   those who do not play such games. USB is unchanged.
+- Audeze Maxwell: no more "Low battery, 0% left" when the headset is switched on. Right
+  after power-on it reports 0% for a moment (measured on an Xbox dongle: 0%, then the real
+  80% a poll later). A 0% in the first 90 seconds is now shown as "battery level not
+  reported yet", and the app re-checks every 3 seconds until the real level arrives
+  instead of waiting a full poll interval. After 90 seconds 0% is believed.
+- A Razer mouse could show "no link (off or asleep)" while in use, when Synapse or other
+  RGB software was sending lighting frames to it (#108). Every reply the app read was an
+  answer to the other app, and the app took that as a success without a level. It now
+  asks again up to three times, keeps the last level greyed out, and the diagnostics say
+  that another app is using the device.
+- An Xbox controller over Bluetooth could show a wrong "10%" when **Windows Bluetooth
+  devices** was off (#97, #108). Windows.Gaming.Input reports 100 of 1000 for it, and the
+  app did not always see that the controller is on Bluetooth. The product ids that Xbox
+  controllers use only over Bluetooth (from SDL) now say so, and the icon asks you to turn
+  on **Windows Bluetooth devices** for the real level.
+- An 8BitDo Ultimate controller on its dock's 2.4 GHz dongle showed "on cable, charging"
+  while it was off the dock and off the cable (#110). The dongle tells XInput that the
+  controller is wired, but Windows.Gaming.Input says that its battery is discharging. The
+  app now believes the second: no "charging", and the icon shows no level, because the
+  dongle does not report a real one (it always says 100%).
+- **A device list that hidapi returned incomplete is no longer cached for the rest of the
+  session.** `hidlist.enumerate()` caches its result against the set of HID paths, and only
+  re-reads when that set changes - but hidapi *opens* every device it lists, so a collection it
+  could not open at that moment is simply missing from the result, with the path set unchanged.
+  The short list was then served from the cache indefinitely: measured on this machine, 9 of 10
+  present collections came back for 5 calls in a row with a single hidapi call, and only an
+  unplug cleared it. A result with fewer entries than the vendor has present interfaces is now
+  re-read, at most once every `SHORT_RETRY` (30 s) so that a permanently unopenable collection
+  cannot turn every call into a full enumeration. Reported by @ahmedkhursheed23 in
+  [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
+- **The Bluetooth watcher now notices a stalled PowerShell instead of pretending to be
+  healthy.** Its output was read with `for line in proc.stdout`, which parks forever on a child
+  that has wedged inside a WinRT call: no snapshot arrives, `failed` stays False, `running()`
+  keeps answering True, and the app never falls back to its once-a-minute polling. The child is
+  read through a queue with a watchdog now (the script's slowest cadence is a snapshot every
+  60 s, so 180 s of silence is a fault); it is killed and restarted, and two stalls in a row make
+  the watcher give up so the fallback happens. Reported by @ahmedkhursheed23 in
+  [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
 - **A "PA" headset (BlackShark V2 Pro 2023, Barracuda) that is switched off costs one probe per
   poll instead of one per collection.** `_poll_pa` remembered the collection that answered, but
   only on a success, so a headset that had been off since the app started had nothing remembered

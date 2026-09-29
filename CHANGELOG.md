@@ -118,6 +118,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
 - HyperX Cloud III Wireless: a dongle that takes the battery request only as a feature
   report ("Incorrect function" on a normal write) showed no level. The app now notices
   the refused write and sends the request as a feature report, as intended.
+- Razer Barracuda Pro: while the headset was off, each poll waited about 4 seconds longer
+  than needed and held back the icons of all other devices. The app now stops asking as
+  soon as the headset does not answer, and it retries when the receiver refuses a command.
 
 ## [1.12.0] - 2026-09-28
 

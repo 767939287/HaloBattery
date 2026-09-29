@@ -12,6 +12,8 @@ Supported:
     Keychron, Lofree, Pulsar / ATK / VXE, ASUS ROG / TUF, G-Wolves and LAMZU Maya X mice
   * Xbox-compatible controllers (Windows.Gaming.Input / XInput)
   * PlayStation controllers (DualShock 4, DualSense): directly over USB/HID
+  * 8BitDo controllers in D-input mode (Pro 2, Pro 3, SN30 / SF30 Pro), while Steam
+    or a game has them in the enhanced mode (never switched by the app, #101)
   * Nintendo Switch Pro Controller and Joy-Con over Bluetooth
   * Bluetooth devices whose battery level Windows knows (enabled from the menu)
 
@@ -70,6 +72,7 @@ import winevents  # noqa: E402
 from providers import hidlist  # noqa: E402
 from providers import (AstroProvider, AsusProvider, AudezeProvider,  # noqa: E402
                        BarracudaProvider, BluetoothProvider, CorsairProvider, DeviceStatus,
+                       EightBitDoProvider,
                        GWolvesProvider, HyperXCloud3Provider, HyperXProvider, JblProvider,
                        KeychronProvider, LamzuProvider, LofreeProvider, LogitechProvider,
                        MchoseProvider, NintendoProvider, PlayStationProvider, PulsarProvider,
@@ -688,7 +691,7 @@ class App:
         self.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
                           HyperXCloud3Provider(), HyperXProvider(), KeychronProvider(), PulsarProvider(),
                           JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
-                          PlayStationProvider(), BarracudaProvider(), NintendoProvider(), AsusProvider(),
+                          PlayStationProvider(), EightBitDoProvider(), BarracudaProvider(), NintendoProvider(), AsusProvider(),
                           GWolvesProvider(), LofreeProvider(), AstroProvider(), CorsairProvider(),
                           LamzuProvider()]
         self.bt = BluetoothProvider()
@@ -1462,7 +1465,7 @@ def probe():
     app.providers = [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
                      HyperXCloud3Provider(), HyperXProvider(), KeychronProvider(), PulsarProvider(),
                      JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
-                     PlayStationProvider(), BarracudaProvider(), NintendoProvider(), AsusProvider(),
+                     PlayStationProvider(), EightBitDoProvider(), BarracudaProvider(), NintendoProvider(), AsusProvider(),
                      GWolvesProvider(), LofreeProvider(), AstroProvider(), CorsairProvider(), LamzuProvider()]
     app.bt = BluetoothProvider()
     res = []

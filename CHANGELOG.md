@@ -6,6 +6,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- 8BitDo Pro 2, Pro 3, SN30 Pro and SF30 Pro in D-input mode (#101). The level is read
+  from the controller's enhanced report while Steam or a game has switched it on; the app
+  never switches it itself, because that mode hides the controller from DirectInput games
+  until it is turned off. Otherwise the icon shows the controller without a level. In
+  XInput mode these controllers already worked. Unverified on hardware here.
+
 ### Changed
 - New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic
   (blurred, translucent) background, rounded corners on Windows 11 and the light or dark

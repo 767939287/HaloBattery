@@ -9,7 +9,7 @@ Supported:
     GG not needed)
   * MCHOSE (M7 Ultra and the rest of the 0x5253 family, on the 2.4 GHz receiver)
   * HyperX (Cloud II and Cloud III Wireless), JBL Quantum 910, Corsair, Astro A50 Gen 5,
-    Keychron, Lofree, Pulsar / ATK / VXE, ASUS ROG / TUF, G-Wolves and LAMZU Maya X mice
+    Keychron, Lofree, Pulsar / ATK / VXE, ASUS ROG / TUF, G-Wolves, LAMZU Maya X and AM Infinity 8K mice
   * Xbox-compatible controllers (Windows.Gaming.Input / XInput)
   * PlayStation controllers (DualShock 4, DualSense): directly over USB/HID
   * 8BitDo controllers in D-input mode (Pro 2, Pro 3, SN30 / SF30 Pro), while Steam
@@ -73,10 +73,10 @@ import icons  # noqa: E402
 import updates  # noqa: E402
 import winevents  # noqa: E402
 from providers import hidlist  # noqa: E402
-from providers import (AstroProvider, AsusProvider, AudezeProvider,  # noqa: E402
-                       BarracudaProvider, BluetoothProvider, CorsairProvider, DeviceStatus,
+from providers import (AmInfinityProvider, AstroProvider, AsusProvider,  # noqa: E402
+                       AudezeProvider, BarracudaProvider, BluetoothProvider, CorsairProvider, DeviceStatus,
                        EightBitDoProvider,
-                       GWolvesProvider, HyperXCloud3Provider, HyperXProvider, JblProvider,
+                       GWolvesProvider, HyperXAlpha2Provider, HyperXCloud3Provider, HyperXProvider, JblProvider,
                        KeychronProvider, LamzuProvider, LofreeProvider, LogitechProvider,
                        MchoseProvider, NintendoProvider, PlayStationProvider, PulsarProvider,
                        RazerProvider, SteelSeriesProvider, WLmouseProvider, XInputProvider)
@@ -115,6 +115,7 @@ DEFAULTS = {
 # devices keep their own switch ("bluetooth" above), as before.
 PROVIDER_LABELS = {
     "8bitdo": "8BitDo controllers",
+    "am_infinity": "AM Infinity 8K (Angry Miao)",
     "astro": "Astro A50",
     "asus": "ASUS ROG / TUF mice",
     "audeze": "Audeze Maxwell",
@@ -122,6 +123,7 @@ PROVIDER_LABELS = {
     "corsair": "Corsair headsets",
     "gwolves": "G-Wolves mice",
     "hyperx": "HyperX Cloud II Wireless",
+    "hyperx_alpha2": "HyperX Cloud Alpha 2",
     "hyperx_cloud3": "HyperX Cloud III Wireless",
     "jbl": "JBL Quantum",
     "keychron": "Keychron",
@@ -141,11 +143,12 @@ PROVIDER_LABELS = {
 
 def make_providers() -> list:
     return [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
-            HyperXCloud3Provider(), HyperXProvider(), KeychronProvider(), PulsarProvider(),
+            HyperXAlpha2Provider(), HyperXCloud3Provider(), HyperXProvider(),
+            KeychronProvider(), PulsarProvider(),
             JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
             PlayStationProvider(), EightBitDoProvider(), BarracudaProvider(), NintendoProvider(),
             AsusProvider(), GWolvesProvider(), LofreeProvider(), AstroProvider(), CorsairProvider(),
-            LamzuProvider()]
+            LamzuProvider(), AmInfinityProvider()]
 
 
 # ---------------------------------------------------------------- config

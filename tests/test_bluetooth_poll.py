@@ -100,6 +100,7 @@ class BluetoothSnapshotTests(unittest.TestCase):
         app.bt_fresh = threading.Event()
         app.bt_cache = []
         app._bt_dup_logged = set()
+        app.was_quiet = False                   # read by loop() (quiet while gaming)
         app.provider = FakeProvider(hid)
         app.providers = [app.provider]
         app.change_signature = lambda: "nothing plugged or unplugged"

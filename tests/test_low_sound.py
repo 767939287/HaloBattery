@@ -117,6 +117,21 @@ class LowSoundWiringTests(HideRenameTestCase):
                                          ("SystemExclamation", self.ws.SND_ALIAS | self.ws.SND_ASYNC),
                                          ("SystemHand", self.ws.SND_ALIAS | self.ws.SND_ASYNC)])
 
+    def test_plays_while_quiet_while_gaming_holds_the_notification(self):
+        """The sound is for full-screen games: "Quiet while gaming" holds the
+        notification, not the sound."""
+        app = self.app(quiet_fullscreen=True)
+        with mock.patch.object(hb, "fullscreen_app_running", lambda: True):
+            app.apply([mouse(15)])
+        self.assertEqual(len(app.held), 1, "the notification is held")
+        self.assertEqual(len(self.played()), 1, "the sound still plays")
+
+    def test_follows_the_alert_level_of_the_device(self):
+        app = self.app()
+        app.cfg["lows"] = {mouse(25).key: 30}
+        app.apply([mouse(25)])
+        self.assertEqual(len(self.played()), 1)
+
     def test_repeats_every_five_minutes_while_low(self):
         app = self.app()
         app.apply([mouse(15)])

@@ -80,6 +80,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   app did not always see that the controller is on Bluetooth. The product ids that Xbox
   controllers use only over Bluetooth (from SDL) now say so, and the icon asks you to turn
   on **Windows Bluetooth devices** for the real level.
+- An 8BitDo Ultimate controller on its dock's 2.4 GHz dongle showed "on cable, charging"
+  while it was off the dock and off the cable (#110). The dongle tells XInput that the
+  controller is wired, but Windows.Gaming.Input says that its battery is discharging. The
+  app now believes the second: no "charging", and the icon shows no level, because the
+  dongle does not report a real one (it always says 100%).
 
 ## [1.12.0] - 2026-09-28
 

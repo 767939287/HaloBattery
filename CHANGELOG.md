@@ -75,6 +75,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   answer to the other app, and the app took that as a success without a level. It now
   asks again up to three times, keeps the last level greyed out, and the diagnostics say
   that another app is using the device.
+- An Xbox controller over Bluetooth could show a wrong "10%" when **Windows Bluetooth
+  devices** was off (#97, #108). Windows.Gaming.Input reports 100 of 1000 for it, and the
+  app did not always see that the controller is on Bluetooth. The product ids that Xbox
+  controllers use only over Bluetooth (from SDL) now say so, and the icon asks you to turn
+  on **Windows Bluetooth devices** for the real level.
 
 ## [1.12.0] - 2026-09-28
 

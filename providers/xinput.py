@@ -98,6 +98,26 @@ _BT_HID = re.compile(r"\{0000(?:1124|1812)-0000-1000-8000-00805f9b34fb\}[^#]*?vi
 
 _HID_VID = re.compile(r"vid[_&]([0-9a-f]{4})")
 
+# Product ids that Microsoft's controllers use only over Bluetooth (classic or LE).
+# Source: SDL, src/joystick/usb_ids.h (USB_PRODUCT_XBOX_*_BLUETOOTH / *_BLE). Over USB
+# and the Xbox Wireless Adapter the same controllers use other ids (02EA, 0B12, 0B00 ...),
+# so one of these ids alone says "Bluetooth", with or without the service guid in a path.
+XBOX_BLUETOOTH_PIDS = frozenset((
+    0x02E0,     # Xbox One S, first firmware, Bluetooth
+    0x02FD,     # Xbox One S, Bluetooth
+    0x0B05,     # Elite Series 2, Bluetooth
+    0x0B0C,     # Adaptive Controller, Bluetooth
+    0x0B13,     # Xbox Series X|S, Bluetooth LE
+    0x0B20,     # Xbox One S, Bluetooth LE
+    0x0B21,     # Adaptive Controller, Bluetooth LE
+    0x0B22,     # Elite Series 2, Bluetooth LE
+))
+MICROSOFT_VID = 0x045E
+
+
+def is_xbox_bluetooth(vid: int, pid: int) -> bool:
+    return vid == MICROSOFT_VID and pid in XBOX_BLUETOOTH_PIDS
+
 
 def bluetooth_only_vids(paths) -> set:
     """Vendor ids whose HID interfaces are *all* on Bluetooth paths.
@@ -300,7 +320,10 @@ class XInputProvider(Provider):
                 self._diag.append(f"[XInput] slot {slot}: connected over Bluetooth "
                                   "(from the device paths)")
             name = (rep.name if rep and rep.name else None) or base_name
-            if rep is not None and (rep.vid, rep.pid) in bt_ids:
+            # the path test alone missed an Xbox One S (045e:02fd) whose path had no
+            # Bluetooth service guid: its report (remain=100 of full=1000) then showed as
+            # "10%" whenever "Windows Bluetooth devices" was off (#97, #108)
+            if rep is not None and ((rep.vid, rep.pid) in bt_ids or is_xbox_bluetooth(rep.vid, rep.pid)):
                 vias[slot] = "bluetooth"
                 self._diag.append(f"[XInput] slot {slot}: connected over Bluetooth")
                 # Over Bluetooth, Windows.Gaming.Input's report is not usable: an

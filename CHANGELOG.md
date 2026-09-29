@@ -135,6 +135,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
 - Tray menu: the item under the mouse was not highlighted. Opening the menu brings it to
   the front, and its acrylic background then hid the highlight window behind it. The
   highlight is now put in front of the menu each time it is shown.
+- The tray menu or one of its submenus could open behind the taskbar when the work area
+  includes the taskbar: with an auto-hide taskbar, or over a full screen game after the
+  Windows key brings the taskbar up. The menus now leave the taskbar's rectangle out.
 
 ## [1.12.0] - 2026-09-28
 

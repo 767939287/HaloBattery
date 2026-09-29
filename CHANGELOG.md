@@ -132,6 +132,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
   channel): the Bluetooth reading was hidden as a duplicate and only the grey "no link"
   icon of the receiver was left. The Bluetooth reading is now hidden only while the
   receiver actually reads the device.
+- Tray menu: the item under the mouse was not highlighted. Opening the menu brings it to
+  the front, and its acrylic background then hid the highlight window behind it. The
+  highlight is now put in front of the menu each time it is shown.
 
 ## [1.12.0] - 2026-09-28
 

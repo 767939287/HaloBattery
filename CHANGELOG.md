@@ -115,6 +115,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
   is remembered. A switched-off headset still shows "no link" rather than losing its icon, and a
   headset switched on afterwards is still found. Reported by @ahmedkhursheed23 in
   [#62](https://github.com/HeyOkay/HaloBattery/issues/62).
+- HyperX Cloud III Wireless: a dongle that takes the battery request only as a feature
+  report ("Incorrect function" on a normal write) showed no level. The app now notices
+  the refused write and sends the request as a feature report, as intended.
 
 ## [1.12.0] - 2026-09-28
 

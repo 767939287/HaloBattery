@@ -7,12 +7,16 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- 8BitDo Pro 2, Pro 3, SN30 Pro and SF30 Pro in D-input mode (#101). The level is read
+  from the controller's enhanced report while Steam or a game has switched it on; the app
+  never switches it itself, because that mode hides the controller from DirectInput games
+  until it is turned off. Otherwise the icon shows the controller without a level. In
+  XInput mode these controllers already worked. Unverified on hardware here.
+- LAMZU Maya X: confirmed on a real mouse on its 8K dongle with 1.12.0, so it is no longer
+  marked unverified.
 - **Device types** in Preferences: turn off any brand or device family (Razer, Logitech,
   PlayStation controllers, ...). A type that is off is not polled and its devices are not
-  opened; its icons go away at once. **PlayStation over Bluetooth** is a switch of its own
-  for #96: reading a DualSense or DualShock 4 over Bluetooth switches it into the full
-  report mode, which some games do not see until the controller is switched off and on.
-  Over USB it is still read.
+  opened; its icons go away at once.
 - **Low battery alert at** in the menu of a device: an alert level for that device only,
   or Default to follow Preferences. The red ring of the icon follows it too.
 - **Estimated time left** in the tooltip ("about 5 h of use left"), from a least-squares
@@ -38,7 +42,29 @@ and the project follows [Semantic Versioning](https://semver.org/).
   After two such polls in a row the headset now gets a greyed icon that says to replug the
   dongle, and the diagnostics say what was seen. This may be HeadsetControl #460.
 
+### Changed
+- New tray menu in the Windows 11 style: Segoe UI Variable text, Fluent icons, an acrylic
+  (blurred, translucent) background, rounded corners on Windows 11 and the light or dark
+  app theme. It fades in, opens next to the taskbar centred on the click (like the menus
+  of the Windows 11 taskbar) and opens submenus on hover; Esc or a
+  click elsewhere closes it, and it works from the keyboard. Set `"fluent_menu": false`
+  in the settings file to get the classic Windows menu back.
+- **Poll interval** and **Low battery alert** are now − / + counters in Preferences; the
+  menu stays open while you change them, and the mouse wheel works on them too.
+
 ### Fixed
+- Notifications were titled "Python" instead of the app's name: the app now sets its
+  own app id and registers the name "HaloBattery" (and its icon) for the notification
+  header, per user, no admin rights.
+- The menu text was small and blurry on displays scaled above 100 %: the app is now DPI
+  aware, so the menu and the tray icons are drawn at the display's real resolution.
+- PS4 / PS5 controllers over Bluetooth stopped working in some games (DirectInput, for
+  example Rocket League from the Epic launcher) until they were turned off and on (#96).
+  To read the battery, the app switched the controller to its full report, and that
+  mode stays on. Over Bluetooth the app now only listens: the level shows while Steam or
+  a game has already switched the controller, and the icon shows no level otherwise.
+  **Preferences > PlayStation full mode (Bluetooth)** brings the old behaviour back for
+  those who do not play such games. USB is unchanged.
 - Audeze Maxwell: no more "Low battery, 0% left" when the headset is switched on. Right
   after power-on it reports 0% for a moment (measured on an Xbox dongle: 0%, then the real
   80% a poll later). A 0% in the first 90 seconds is now shown as "battery level not

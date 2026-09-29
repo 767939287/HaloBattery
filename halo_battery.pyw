@@ -12,6 +12,8 @@ Supported:
     Keychron, Lofree, Pulsar / ATK / VXE, ASUS ROG / TUF, G-Wolves and LAMZU Maya X mice
   * Xbox-compatible controllers (Windows.Gaming.Input / XInput)
   * PlayStation controllers (DualShock 4, DualSense): directly over USB/HID
+  * 8BitDo controllers in D-input mode (Pro 2, Pro 3, SN30 / SF30 Pro), while Steam
+    or a game has them in the enhanced mode (never switched by the app, #101)
   * Nintendo Switch Pro Controller and Joy-Con over Bluetooth
   * Bluetooth devices whose battery level Windows knows (enabled from the menu)
 
@@ -65,6 +67,7 @@ except ImportError:
 import pystray  # noqa: E402
 from pystray import Menu, MenuItem as Item  # noqa: E402
 
+import flyout  # noqa: E402
 import history  # noqa: E402
 import icons  # noqa: E402
 import updates  # noqa: E402
@@ -72,6 +75,7 @@ import winevents  # noqa: E402
 from providers import hidlist  # noqa: E402
 from providers import (AstroProvider, AsusProvider, AudezeProvider,  # noqa: E402
                        BarracudaProvider, BluetoothProvider, CorsairProvider, DeviceStatus,
+                       EightBitDoProvider,
                        GWolvesProvider, HyperXCloud3Provider, HyperXProvider, JblProvider,
                        KeychronProvider, LamzuProvider, LofreeProvider, LogitechProvider,
                        MchoseProvider, NintendoProvider, PlayStationProvider, PulsarProvider,
@@ -94,8 +98,13 @@ DEFAULTS = {
     # "windows" / "topbar" force one automatic source (config file only)
     "icon_theme": "auto",
     "update_check": True,   # once a day: is there a newer release on GitHub?
+    # the Windows 11 style menu (flyout.py); false = the classic Windows menu (config file only)
+    "fluent_menu": True,
+    # PlayStation controllers over Bluetooth: switch them to the full report to read the
+    # battery. Off by default: that mode stays on until the controller is turned off and
+    # games that use DirectInput stop seeing the controller (#96)
+    "playstation_full_mode": False,
     "disabled_providers": [],     # provider names turned off in Preferences > Device types
-    "playstation_bluetooth": True,  # read PlayStation controllers over Bluetooth too (#96)
     "time_left": True,      # "about N h of use left" in the tooltip (history.py)
     "percent_in_icon": False,  # the level as a number in the ring, instead of the pictogram
     "quiet_fullscreen": True,  # while a game is full screen: hold alerts, poll every 5 min
@@ -105,6 +114,7 @@ DEFAULTS = {
 # Preferences > Device types: provider name -> what the user sees. Windows Bluetooth
 # devices keep their own switch ("bluetooth" above), as before.
 PROVIDER_LABELS = {
+    "8bitdo": "8BitDo controllers",
     "astro": "Astro A50",
     "asus": "ASUS ROG / TUF mice",
     "audeze": "Audeze Maxwell",
@@ -133,8 +143,8 @@ def make_providers() -> list:
     return [RazerProvider(), AudezeProvider(), WLmouseProvider(), MchoseProvider(),
             HyperXCloud3Provider(), HyperXProvider(), KeychronProvider(), PulsarProvider(),
             JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
-            PlayStationProvider(), BarracudaProvider(), NintendoProvider(), AsusProvider(),
-            GWolvesProvider(), LofreeProvider(), AstroProvider(), CorsairProvider(),
+            PlayStationProvider(), EightBitDoProvider(), BarracudaProvider(), NintendoProvider(),
+            AsusProvider(), GWolvesProvider(), LofreeProvider(), AstroProvider(), CorsairProvider(),
             LamzuProvider()]
 
 
@@ -265,6 +275,70 @@ def running_from_temp() -> bool:
     return False
 
 
+# The texts of the app's notifications.
+def low_battery_text(name: str, level: Optional[int], approx: bool) -> str:
+    left = "battery is low" if approx else f"{level}% left"
+    return f"{name}: {left}. Time to charge."
+
+
+def fully_charged_text(name: str) -> str:
+    return f"{name} is fully charged."
+
+
+def update_text(latest: str) -> str:
+    return (f"Version {latest} is available. Right-click a battery icon "
+            f"and choose \"Download v{latest}…\".")
+
+
+# Windows titles a notification with the app that sent it. Without an id of its own the
+# process is "Python" (pythonw.exe) - that is what the notifications said. The id is set
+# for the process at start-up and registered under HKCU with the name (and icon) to show
+# in the notification header; nothing needs admin rights.
+APP_ID = "HaloBattery"
+APP_ID_NAME = "HaloBattery"
+APP_ID_KEY = "Software\\Classes\\AppUserModelId\\" + APP_ID
+APP_ICON_PATH = os.path.join(DATA_DIR, "notification_icon.png")
+
+
+def app_icon_png(path: str) -> bool:
+    """The app icon (the same drawing as halo.ico) as a PNG for the notification header."""
+    try:
+        from PIL import Image, ImageDraw
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        size, ss = 64, 4
+        big = size * ss
+        img = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+        ImageDraw.Draw(img).ellipse((0, 0, big - 1, big - 1), fill=(32, 32, 32, 255))
+        ring = icons.render(75, True, True, 20, light_taskbar=False, badge="")
+        ring = ring.resize((int(big * 0.84),) * 2, Image.LANCZOS)
+        off = (big - ring.width) // 2
+        img.alpha_composite(ring, (off, off))
+        img.resize((size, size), Image.LANCZOS).save(path)
+        return True
+    except Exception as e:
+        log.warning("notification icon: %s", e)
+        return False
+
+
+def set_app_id() -> None:
+    """Name the notifications "HaloBattery" instead of "Python"."""
+    if sys.platform != "win32":
+        return
+    try:
+        import winreg
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, APP_ID_KEY) as k:
+            winreg.SetValueEx(k, "DisplayName", 0, winreg.REG_SZ, APP_ID_NAME)
+            if app_icon_png(APP_ICON_PATH):
+                winreg.SetValueEx(k, "IconUri", 0, winreg.REG_SZ, APP_ICON_PATH)
+    except OSError as e:
+        log.warning("app id registration: %s", e)
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_ID)
+    except (OSError, AttributeError) as e:
+        log.warning("app id: %s", e)
+
+
 TEMP_AUTOSTART_TEXT = ("Halo Battery is running from a temporary folder (straight from the ZIP). "
                        "Extract the ZIP to a folder of its own, run HaloBattery.exe from there, "
                        "then turn on Start with Windows.")
@@ -374,6 +448,7 @@ def fullscreen_app_running() -> bool:
 
 
 # ------------------------------------------------------------- tray icons
+WM_RBUTTONUP = 0x0205
 ICON_HANDLE_CACHE = 64     # icon handles kept per tray icon (a charging cycle is 30 frames)
 IDLE_KEY = "HaloBattery:idle"   # the "no devices found" icon's id
 _tray_classes: Dict[type, type] = {}
@@ -446,6 +521,18 @@ def _make_tray_class(base: type) -> type:
                 return super()._release_icon()
             self._icon_handle = None                  # the handle stays in the cache
             return None
+
+        def _on_notify(self, wparam, lparam):
+            # a right-click opens the Windows 11 style menu (flyout.py); the classic
+            # menu is pystray's own and is still there when the flyout cannot open
+            host = getattr(self, "_hb_flyout", None)
+            if host is not None and lparam == WM_RBUTTONUP and self.menu:
+                try:
+                    if host.show(self.menu, self):
+                        return None
+                except Exception as e:
+                    log.warning("menu: %s", e)
+            return super()._on_notify(wparam, lparam)
 
         def forget_handles(self) -> None:
             """Free the cached handles once the icon is gone."""
@@ -661,6 +748,7 @@ class DeviceIcon:
         self.icon = tray_icon(key, f"{APP_NAME}_{abs(hash(key))}",
                               icons.render(None, False, False, light_taskbar=app.light_taskbar),
                               APP_TITLE, app.build_menu(self))
+        self.icon._hb_flyout = getattr(app, "flyout", None)
         # pystray calls the setup function once the icon's window exists. The app shows
         # the icon itself (in _update), after that, so a show is never lost.
         self.ready = threading.Event()
@@ -778,6 +866,9 @@ class App:
         self.bt_watch_failed = False
         self.update: Optional[tuple] = None   # (version, release page) when a newer one exists
         self.update_wake = threading.Event()  # "check for updates now"
+        # the tray menu (flyout.py); None = pystray's classic menu
+        self.flyout: Optional[flyout.FlyoutHost] = (
+            flyout.FlyoutHost() if sys.platform == "win32" and self.cfg.get("fluent_menu", True) else None)
 
     # ---------------- menu
     def build_menu(self, owner: Optional[DeviceIcon]) -> Menu:
@@ -789,18 +880,14 @@ class App:
             return f"No devices shown ({hidden} hidden)" if hidden else "No devices found"
 
         def set_interval(sec):
-            def _f(icon, item):
-                self.cfg["interval"] = sec
-                save_config(self.cfg)
-                self.wake.set()
-            return _f
+            self.cfg["interval"] = sec
+            save_config(self.cfg)
+            self.wake.set()
 
         def set_low(p):
-            def _f(icon, item):
-                self.cfg["low"] = p
-                save_config(self.cfg)
-                self.wake.set()
-            return _f
+            self.cfg["low"] = p
+            save_config(self.cfg)
+            self.wake.set()
 
         def toggle(key):
             def _f(icon, item):
@@ -836,8 +923,7 @@ class App:
             except OSError as e:
                 log.warning("autostart: %s", e)
 
-        intervals = [(15, "15 seconds"), (30, "30 seconds"), (60, "1 minute"),
-                     (120, "2 minutes"), (300, "5 minutes")]
+        intervals = [(15, "15 s"), (30, "30 s"), (60, "1 min"), (120, "2 min"), (300, "5 min")]
         themes = [("auto", "Automatic"), ("white", "White"), ("black", "Black")]
         lows = [(0, "Off"), (10, "10%"), (15, "15%"), (20, "20%"), (25, "25%"), (30, "30%")]
 
@@ -879,11 +965,6 @@ class App:
         def provider_items():
             for name, label in sorted(PROVIDER_LABELS.items(), key=lambda kv: kv[1].lower()):
                 yield Item(label, flip_provider(name), checked=provider_on(name))
-                if name == "playstation":
-                    # right under "PlayStation controllers", and greyed out while that is off
-                    yield Item("PlayStation over Bluetooth", toggle("playstation_bluetooth"),
-                               checked=lambda it: self.cfg.get("playstation_bluetooth", True),
-                               enabled=provider_on("playstation"))
 
         def hidden_items():
             # built each time the menu opens, so it always shows the current list
@@ -906,12 +987,9 @@ class App:
 
         # all settings in one submenu, so the main menu keeps only the things used often
         preferences = Menu(
-            Item("Poll interval", Menu(*[
-                Item(t, set_interval(s), checked=lambda it, s=s: self.cfg["interval"] == s, radio=True)
-                for s, t in intervals])),
-            Item("Low battery alert at", Menu(*[
-                Item(t, set_low(p), checked=lambda it, p=p: self.cfg["low"] == p, radio=True)
-                for p, t in lows])),
+            # - / + in the menu; the classic menu shows them as a list to pick from
+            flyout.CounterItem("Poll interval", intervals, lambda: self.cfg["interval"], set_interval),
+            flyout.CounterItem("Low battery alert", lows, lambda: self.cfg["low"], set_low),
             Item("Alert when fully charged", toggle("full_alert"),
                  checked=lambda it: self.cfg.get("full_alert", True)),
             Item("Estimated time left", toggle("time_left"),
@@ -921,6 +999,11 @@ class App:
             Menu.SEPARATOR,
             Item("Windows Bluetooth devices", toggle("bluetooth"),
                  checked=lambda it: self.cfg["bluetooth"]),
+            # off: a PS4 / PS5 controller over Bluetooth shows its level only while Steam or a
+            # game has it in the full mode; on: the app switches it, which some games do not
+            # survive until the controller is turned off and on (#96)
+            Item("PlayStation full mode (Bluetooth)", toggle("playstation_full_mode"),
+                 checked=lambda it: self.cfg.get("playstation_full_mode", False)),
             Item("Device types", Menu(provider_items)),
             Item("Device pictogram", toggle("badges"),
                  checked=lambda it: self.cfg["badges"]),
@@ -1241,8 +1324,6 @@ class App:
         disabled = self.disabled_providers()
         if disabled:
             lines.append("device types turned off: " + ", ".join(sorted(disabled)))
-        if not self.cfg.get("playstation_bluetooth", True):
-            lines.append("PlayStation controllers over Bluetooth: not read (turned off)")
         lines.append(f"quiet while gaming: {'on' if self.cfg.get('quiet_fullscreen', True) else 'off'}, "
                      f"full-screen app in front now: {fullscreen_app_running()}, "
                      f"{len(self.held)} notification(s) held")
@@ -1263,6 +1344,9 @@ class App:
             lines.append(f"(failed: {e})")
         lines.append("")
         lines.append("=== Protocol details ===")
+        lines.append("PlayStation full mode over Bluetooth: "
+                     + ("on (the app switches the controller)" if self.cfg.get("playstation_full_mode")
+                        else "off (listen only)"))
         for p in self.providers + ([self.bt] if self.cfg["bluetooth"] else []):
             if p.name not in disabled:
                 lines += p.diagnostics()
@@ -1294,7 +1378,7 @@ class App:
             if p.name in disabled:
                 continue          # turned off in Preferences > Device types: not opened at all
             if isinstance(p, PlayStationProvider):
-                p.read_bluetooth = bool(self.cfg.get("playstation_bluetooth", True))
+                p.switch_bluetooth = bool(self.cfg.get("playstation_full_mode", False))
             try:
                 found = p.poll()
             except Exception:
@@ -1408,6 +1492,7 @@ class App:
                                          icons.render(None, False, False, light_taskbar=self.light_taskbar),
                                          f"{APP_TITLE}: no devices found",
                                          self.build_menu(None))
+            self.placeholder._hb_flyout = getattr(self, "flyout", None)
             self.placeholder_ready = ready
             threading.Thread(target=self.placeholder.run, args=(lambda icon: ready.set(),),
                              daemon=True).start()
@@ -1430,8 +1515,8 @@ class App:
         if st.level <= low and not self.alerted.get(st.key):
             self.alerted[st.key] = True
             try:
-                left = "battery is low" if st.approx else f"{st.level}% left"
-                self.notify(ic.icon, st.key, f"{self.display_name(st)}: {left}. Time to charge.",
+                self.notify(ic.icon, st.key,
+                            low_battery_text(self.display_name(st), st.level, bool(st.approx)),
                             "Low battery")
             except Exception as e:
                 log.warning("notify: %s", e)
@@ -1449,7 +1534,7 @@ class App:
         prev = self.full_state.get(st.key)
         if st.level >= 100 and prev == "charging" and self.cfg.get("full_alert", True):
             try:
-                self.notify(ic.icon, st.key, f"{self.display_name(st)} is fully charged.",
+                self.notify(ic.icon, st.key, fully_charged_text(self.display_name(st)),
                             "Fully charged")
             except Exception as e:
                 log.warning("notify: %s", e)
@@ -1678,8 +1763,7 @@ class App:
             self.refresh_menus()
             if self.cfg.get("update_notified") != latest:
                 self.cfg["update_notified"] = latest
-                self.notify_any(f"Version {latest} is available. Right-click a battery icon "
-                                f"and choose \"Download v{latest}…\".", f"{APP_TITLE} update")
+                self.notify_any(update_text(latest), f"{APP_TITLE} update")
         else:
             self.update = None
         save_config(self.cfg)
@@ -1704,6 +1788,9 @@ class App:
             ic.stop()
         if self.placeholder:
             self.placeholder.stop()
+        host = getattr(self, "flyout", None)
+        if host is not None:
+            host.stop()
 
     def run(self):
         log.info("start v%s", VERSION)
@@ -1713,6 +1800,8 @@ class App:
         threading.Thread(target=self.anim_loop, daemon=True).start()
         threading.Thread(target=self.bt_loop, daemon=True).start()
         threading.Thread(target=self.update_loop, daemon=True).start()
+        if self.flyout is not None:
+            self.flyout.start()                  # tkinter is ready by the first right-click
         try:
             while not self.stop_evt.is_set():
                 self.stop_evt.wait(1)
@@ -1752,6 +1841,8 @@ def probe():
     app.bt = BluetoothProvider()
     res = []
     for p in app.providers + [app.bt]:
+        if isinstance(p, PlayStationProvider):
+            p.switch_bluetooth = bool(app.cfg.get("playstation_full_mode", False))
         res += p.poll()
         print("\n".join(p.diagnostics()))
     print("\n=== Summary ===")
@@ -1766,11 +1857,15 @@ def probe():
 
 
 def main():
+    # before any window exists: without it Windows draws the app at 100 % and
+    # stretches it on a scaled screen, which made the menu text small and blurry
+    flyout.enable_dpi_awareness()
     if "--probe" in sys.argv:
         probe()
         return
     if not single_instance():
         return
+    set_app_id()                   # before the tray icons: notifications say "HaloBattery"
     # the app used to be called "Battery Tray": pick up its settings and autostart
     if migrate_legacy_config():
         log.info("settings migrated from %%APPDATA%%\\%s", LEGACY_NAME)

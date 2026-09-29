@@ -272,9 +272,10 @@ class MenuLayoutTests(HideRenameTestCase):
         menu = app.build_menu(None)
         prefs = next(i for i in menu.items if i.text == "Preferences").submenu
         texts = [i.text for i in prefs.items if i is not hb.Menu.SEPARATOR]
-        self.assertEqual(texts, ["Poll interval", "Low battery alert at", "Alert when fully charged",
+        self.assertEqual(texts, ["Poll interval", "Low battery alert", "Alert when fully charged",
                                  "Estimated time left", "Quiet while gaming",
-                                 "Windows Bluetooth devices", "Device types",
+                                 "Windows Bluetooth devices", "PlayStation full mode (Bluetooth)",
+                                 "Device types",
                                  "Device pictogram", "Percentage in the icon", "Charging animation",
                                  "Icon colour", "Status file for other apps",
                                  "Start with Windows", "Check for updates"])

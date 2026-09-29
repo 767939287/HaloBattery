@@ -690,6 +690,11 @@ def describe(st: DeviceStatus, name: Optional[str] = None, left: str = "") -> st
     """The tooltip text. `name` replaces the device's own name (set with "Rename..."),
     `left` is the estimated time left ("about 5 h of use left"), shown only while the
     device is awake and on battery."""
+    return f"{name or st.name}: {device_state(st, left)}"
+
+
+def device_state(st: DeviceStatus, left: str = "") -> str:
+    """The part of describe() after the name: "85%, charging", "no link ..."."""
     if st.approx:
         state = st.approx          # XInput: coarse levels or "not reported yet", never a fake "NN%"
     elif st.level is None:
@@ -702,7 +707,7 @@ def describe(st: DeviceStatus, name: Optional[str] = None, left: str = "") -> st
             state += " (last known value, device asleep)"
         elif left and not st.charging:
             state += f", {left}"
-    return f"{name or st.name}: {state}"
+    return state
 
 
 # ------------------------------------------------------------- hide / rename
@@ -876,12 +881,17 @@ class App:
 
     # ---------------- menu
     def build_menu(self, owner: Optional[DeviceIcon]) -> Menu:
-        def header_text(_item):
+        # the flyout shows the state on the line below the name (flyout.HeaderItem)
+        def header_title():
             if owner and owner.status:
-                return describe(owner.status, self.display_name(owner.status),
-                                self.time_left_text(owner.status))
+                return self.display_name(owner.status) or owner.status.name
             hidden = len(self._settings_map("hidden"))
             return f"No devices shown ({hidden} hidden)" if hidden else "No devices found"
+
+        def header_detail():
+            if owner and owner.status:
+                return device_state(owner.status, self.time_left_text(owner.status))
+            return ""
 
         def set_interval(sec):
             self.cfg["interval"] = sec
@@ -978,7 +988,8 @@ class App:
 
         # items for the device of this icon only (the "no devices" icon has none)
         device_items = [
-            Item("Rename…", lambda i, it: self.rename(owner)),
+            # the flyout has the pencil next to the name instead
+            flyout.classic_only(Item("Rename…", lambda i, it: self.rename(owner))),
             Item("Reset name", lambda i, it: self.reset_name(owner), visible=renamed),
             Item("Icon", Menu(*[Item(label, pick(value), checked=picked(value), radio=True)
                                 for value, label in PICTOGRAM_CHOICES])),
@@ -1028,7 +1039,8 @@ class App:
         )
 
         return Menu(
-            Item(header_text, None, enabled=False),
+            flyout.HeaderItem(header_title, header_detail,
+                              edit=(lambda icon: self.rename(owner)) if owner is not None else None),
             Item(update_text, lambda i, it: self.open_update(),
                  visible=lambda it: self.update is not None),
             *device_items,

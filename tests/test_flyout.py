@@ -32,11 +32,12 @@ class ColourTests(unittest.TestCase):
         self.assertEqual(dark["muted"], "#9e9e9e")        # 60 % of #F2F2F2 over #202020
         light = flyout.colours(True)
         self.assertEqual(light["text"], "#1a1a1a")
+        self.assertEqual(dark["faint"], "#5f5f5f")        # 30 %: the pencil, dimmer than muted
 
     def test_transparent_key_is_next_to_the_tint_and_not_a_used_colour(self):
         for light in (False, True):
             c = flyout.colours(light)
-            self.assertNotIn(c["key"], (c["text"], c["muted"], c["separator"], c["border"]))
+            self.assertNotIn(c["key"], (c["text"], c["muted"], c["faint"], c["separator"], c["border"]))
             tint = flyout.parse_argb(flyout.PALETTE[light]["tint"])[1:]
             key = flyout.parse_argb(c["key"])[1:]
             self.assertLessEqual(max(abs(a - b) for a, b in zip(tint, key)), 1)
@@ -272,6 +273,100 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(w, 4 + 8 + 24 + 280 + 10 + 4)
 
 
+
+class HeaderTests(unittest.TestCase):
+    """The device's name and state at the top of the menu: wrapped, never wider."""
+
+    def header(self, title, detail):
+        return flyout.HeaderItem(lambda: title, lambda: detail)
+
+    def test_classic_menu_sees_one_disabled_item(self):
+        item = self.header("Viper Ultimate", "85%, charging")
+        self.assertEqual(item.text, "Viper Ultimate: 85%, charging")
+        self.assertFalse(item.enabled)
+        self.assertEqual(self.header("No devices found", "").text, "No devices found")
+
+    def test_the_texts_are_read_each_time(self):
+        level = [50]
+        item = flyout.HeaderItem(lambda: "Mouse", lambda: f"{level[0]}%")
+        level[0] = 40
+        self.assertEqual(item.text, "Mouse: 40%")
+
+    def test_a_long_header_does_not_widen_the_menu(self):
+        long = "85%, charging (last known value, device asleep), about 12 h of use left"
+        rows = flyout.build_rows(Menu(self.header("Razer BlackShark V2 Pro 2023 edition", long),
+                                      Item("Exit", lambda: None)))
+        w, _h = flyout.layout(rows, FakeStyle(), measure, lambda g: 10)
+        self.assertEqual(w, 230)
+        room = flyout.header_text_width(w, FakeStyle())
+        self.assertEqual(room, 230 - 4 - 4 - 8 - 24 - 10)     # from the items' text column
+        for text, _detail in rows[0].lines:
+            self.assertLessEqual(measure(text), room)
+        titles = [t for t, d in rows[0].lines if not d]
+        details = [t for t, d in rows[0].lines if d]
+        self.assertEqual(" ".join(titles), "Razer BlackShark V2 Pro 2023 edition")
+        self.assertEqual(" ".join(details), long)
+
+    def test_the_state_goes_on_the_line_below_the_name(self):
+        rows = flyout.build_rows(Menu(self.header("Viper", "85%"), Item("Exit", lambda: None)))
+        flyout.layout(rows, FakeStyle(), measure, lambda g: 10)
+        self.assertEqual(rows[0].lines, [("Viper", False), ("85%", True)])
+        # 8 above, two lines with a 2 px gap, 8 below, then its separator (4 + 1 + 4)
+        self.assertEqual(rows[0].h, 8 + 17 + 2 + 17 + 8 + 9)
+        self.assertEqual(flyout.header_line_tops(rows[0], FakeStyle()), [4 + 8, 4 + 8 + 17 + 2])
+        self.assertEqual(rows[1].y, 4 + rows[0].h)
+        self.assertFalse(rows[0].selectable)
+
+    def test_a_separator_after_the_header_is_not_doubled(self):
+        rows = flyout.build_rows(Menu(self.header("No devices found", ""), Menu.SEPARATOR,
+                                      Item("Exit", lambda: None)))
+        self.assertEqual([r.kind for r in rows], ["header", "item"])
+
+    def test_without_a_detail_it_is_one_line(self):
+        rows = flyout.build_rows(Menu(self.header("No devices found", "")))
+        flyout.layout(rows, FakeStyle(), measure, lambda g: 10)
+        self.assertEqual(rows[0].lines, [("No devices found", False)])
+        self.assertEqual(rows[0].h, 8 + 17 + 8 + 9)
+
+    def test_other_items_still_set_the_width(self):
+        rows = flyout.build_rows(Menu(self.header("Mouse", "x " * 60), Item("y" * 40, lambda: None)))
+        w, _h = flyout.layout(rows, FakeStyle(), measure, lambda g: 10)
+        self.assertEqual(w, 4 + 8 + 24 + 280 + 10 + 4)
+
+    def test_the_pencil_leaves_room_next_to_the_title(self):
+        long_name = "Razer BlackShark V2 Pro 2023 edition"
+        rows = flyout.build_rows(Menu(flyout.HeaderItem(lambda: long_name, lambda: "85%",
+                                                        edit=lambda icon: None),
+                                      Item("Exit", lambda: None)))
+        w, _h = flyout.layout(rows, FakeStyle(), measure, lambda g: 10)
+        room = flyout.header_text_width(w, FakeStyle()) - 8 - 28
+        titles = [t for t, d in rows[0].lines if not d]
+        self.assertTrue(all(measure(t) <= room for t in titles))
+        x0, y0, x1, y1 = flyout.edit_box(rows[0], w, FakeStyle())
+        self.assertEqual((x1 - x0, y1 - y0), (28, 26))
+        self.assertLessEqual(x1, w - 4)                      # inside the panel
+        mid = flyout.header_line_tops(rows[0], FakeStyle())[0] + 17 // 2
+        self.assertEqual((y0 + y1) // 2, mid)                # level with the title
+
+    def test_only_a_header_with_a_pencil_can_be_chosen(self):
+        with_edit = flyout.build_rows(Menu(flyout.HeaderItem(lambda: "M", edit=lambda i: None)))
+        without = flyout.build_rows(Menu(self.header("M", "")))
+        self.assertTrue(with_edit[0].selectable)
+        self.assertFalse(without[0].selectable)
+
+    def test_classic_only_items_are_left_out_of_the_flyout(self):
+        menu = Menu(self.header("Mouse", "50%"),
+                    flyout.classic_only(Item("Rename…", lambda: None)),
+                    Item("Icon", lambda: None))
+        self.assertEqual([r.text for r in flyout.build_rows(menu)], ["Mouse: 50%", "Icon"])
+        self.assertIn("Rename…", [i.text for i in menu.items])   # the classic menu keeps it
+
+    def test_wrap(self):
+        self.assertEqual(flyout.wrap("aa bb cc", 35, measure), ["aa bb", "cc"])
+        self.assertEqual(flyout.wrap("abcdefghij", 28, measure), ["abcd", "efgh", "ij"])
+        self.assertEqual(flyout.wrap("", 28, measure), [""])
+        self.assertEqual(flyout.wrap("a", 1, measure), ["a"])         # never an endless loop
+
 class FakeWindow:
     """Records what the highlight code does to a tkinter window."""
 
@@ -350,6 +445,62 @@ class HighlightTests(unittest.TestCase):
         p.update_highlight()
         self.assertEqual(p.overlay.calls[-1], ("-alpha", 0.1))
 
+
+
+class PencilTests(unittest.TestCase):
+    """The pencil at the right of the device's name: hover, keyboard and click."""
+
+    def panel(self, edit):
+        rows = flyout.build_rows(Menu(flyout.HeaderItem(lambda: "Mouse", lambda: "50%", edit=edit),
+                                      Item("Icon", lambda: None)))
+        p = object.__new__(flyout._Panel)
+        p.rows, p.style = rows, FakeStyle()
+        p.w, p.h = flyout.layout(rows, p.style, measure, lambda g: 10)
+        p.x, p.y, p.hover, p.part, p.child_row = 100, 200, None, None, None
+        p.win = object()
+        self.draws = []
+        p.draw = lambda: self.draws.append((p.hover, p.part))
+        p.update_highlight = lambda: None
+        return p
+
+    def test_only_the_pencil_is_under_the_mouse(self):
+        p = self.panel(lambda icon: None)
+        x0, y0, x1, y1 = flyout.edit_box(p.rows[0], p.w, p.style)
+        self.assertEqual(p.hit(p.x + (x0 + x1) // 2, p.y + (y0 + y1) // 2), (0, "edit"))
+        self.assertEqual(p.hit(p.x + 40, p.y + (y0 + y1) // 2), (None, None))   # the name
+        self.assertEqual(p.hit(p.x + (x0 + x1) // 2, p.y + y1 + 20), (None, None))
+
+    def test_the_highlight_covers_the_pencil(self):
+        p = self.panel(lambda icon: None)
+        p.hover, p.part = 0, "edit"
+        self.assertEqual(p.highlight_box(), flyout.edit_box(p.rows[0], p.w, p.style))
+
+    def test_the_pencil_brightens_under_the_mouse(self):
+        p = self.panel(lambda icon: None)
+        p.set_hover(0, "edit")
+        p.set_hover(0, "edit")
+        p.set_hover(1, None)
+        self.assertEqual(self.draws, [(0, "edit"), (1, None)])        # redrawn on a change only
+
+    def test_the_keyboard_reaches_the_pencil(self):
+        p = self.panel(lambda icon: None)
+        p.move_hover(+1)
+        self.assertEqual((p.hover, p.part), (0, "keyboard"))
+
+    def test_a_click_closes_the_menu_and_edits(self):
+        done = []
+        p = self.panel(lambda icon: done.append(icon))
+        host = object.__new__(flyout.FlyoutHost)
+        host._icon, host.closed = "icon", False
+        host.close = lambda: setattr(host, "closed", True)
+        host._activate(p, 0, "edit")
+        for _ in range(100):
+            if done:
+                break
+            import time
+            time.sleep(0.01)
+        self.assertTrue(host.closed)
+        self.assertEqual(done, ["icon"])
 
 if __name__ == "__main__":
     unittest.main()

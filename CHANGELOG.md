@@ -61,6 +61,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
   in the settings file to get the classic Windows menu back.
 - **Poll interval** and **Low battery alert** are now − / + counters in Preferences; the
   menu stays open while you change them, and the mouse wheel works on them too.
+- The top of the tray menu shows the device's name on one line and its level,
+  charging state and time left on the line below. A long name or state wraps onto
+  more lines instead of making the whole menu wider. A small pencil at the right of the
+  name renames the device; it replaces the Rename item (the classic menu keeps it).
 
 ### Fixed
 - Notifications were titled "Python" instead of the app's name: the app now sets its

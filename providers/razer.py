@@ -134,7 +134,7 @@ KNOWN = {
 # wIndex = report_index to the interface (USB_RECIP_INTERFACE), in
 # razer_get_report_params(). That interface is asked first; the others stay a fallback.
 KEYBOARD_INTERFACE = {
-    0x0290: 2, 0x0296: 2, 0x02D5: 2, 0x025A: 2, 0x025C: 2,
+    0x0290: 2, 0x0296: 2, 0x02D5: 2,
     0x0292: 3, 0x0298: 3, 0x02D7: 3,
     0x0271: 3, 0x0258: 3, 0x02BA: 3, 0x02B9: 3,
 }

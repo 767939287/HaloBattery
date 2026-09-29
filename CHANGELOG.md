@@ -7,7 +7,6 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
-
 - The **Poll interval** was not kept while Bluetooth was on: each Bluetooth update (once a
   minute, and several times after a device connects) also polled every mouse, keyboard
   and headset, so a 5-minute interval became about one minute. A Bluetooth update now

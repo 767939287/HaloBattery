@@ -105,6 +105,16 @@ KNOWN = {
     0x00D4: ("Razer Basilisk Mobile", 0x1F),
     0x00D6: ("Razer Basilisk V3 Pro 35K Phantom Green", 0x1F),
     0x00D7: ("Razer Basilisk V3 Pro 35K Phantom Green", 0x1F),
+
+    # Keyboards with a battery. OpenRazer's RazerBlackWidowV3ProWired (0x025A) lists
+    # get_battery/is_charging, and the wireless model (0x025C) inherits that class.
+    # razer_attr_read_charge_level() reads both with razer_chroma_misc_get_battery_level()
+    # - the same 0x07:0x80 / 0x07:0x84 commands this provider already sends - and sets
+    # the transaction id to 0x9f for the wireless keyboards of this generation and 0x3f
+    # for their wired twins. 0x3f is not a value this keyboard answers on: the wired id
+    # goes only to 0x025A.
+    0x025A: ("Razer BlackWidow V3 Pro", 0x3F),
+    0x025C: ("Razer BlackWidow V3 Pro", 0x9F),
 }
 
 TRANSACTION_IDS = (0x1F, 0x3F, 0xFF, 0x9F, 0x08)

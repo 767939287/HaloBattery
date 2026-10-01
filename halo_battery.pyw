@@ -45,6 +45,9 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
 
+# Define APPDATA_DIR globally for legacy config migration
+APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~"))
+
 def _calculate_data_dir(base_dir):
     """Calculate data directory based on portable mode.
     

@@ -45,8 +45,23 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
 
-APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~"))
-DATA_DIR = os.path.join(APPDATA_DIR, APP_NAME)
+def _calculate_data_dir(base_dir):
+    """Calculate data directory based on portable mode.
+    
+    Returns:
+        tuple: (portable_mode: bool, data_dir: str)
+    """
+    portable_mode = os.path.exists(os.path.join(base_dir, "portable.txt"))
+    
+    if portable_mode:
+        return (True, base_dir)
+    else:
+        APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~"))
+        data_dir = os.path.join(APPDATA_DIR, APP_NAME)
+        return (False, data_dir)
+
+# Calculate data directory using the new function
+portable_mode, DATA_DIR = _calculate_data_dir(BASE_DIR)
 os.makedirs(DATA_DIR, exist_ok=True)
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 LOG_PATH = os.path.join(DATA_DIR, "halo_battery.log")

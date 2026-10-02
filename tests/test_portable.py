@@ -49,5 +49,33 @@ class PortableTest(unittest.TestCase):
                 self.assertFalse(portable_mode)
                 self.assertEqual(data_dir, expected_dir)
 
+    def test_data_dir_fallback_when_appdata_absent(self):
+        """Test that when APPDATA is not set, fallback to user home directory is used."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            portable_file = os.path.join(temp_dir, 'portable.txt')
+            self.assertFalse(os.path.exists(portable_file))
+            
+            # Test that when APPDATA is not set in environment, it falls back to home directory
+            # We need to temporarily remove APPDATA from environment and test the fallback
+            original_appdata = os.environ.get("APPDATA")
+            
+            # Remove APPDATA from environment to test fallback behavior
+            if "APPDATA" in os.environ:
+                del os.environ["APPDATA"]
+            
+            try:
+                portable_mode, data_dir = _calculate_data_dir(temp_dir)
+                self.assertFalse(portable_mode)
+                
+                # The data directory should be the user home directory + APP_NAME
+                expected_dir = os.path.join(os.path.expanduser("~"), "HaloBattery")
+                self.assertEqual(data_dir, expected_dir)
+            finally:
+                # Restore original APPDATA environment variable
+                if original_appdata is not None:
+                    os.environ["APPDATA"] = original_appdata
+                elif "APPDATA" in os.environ:
+                    del os.environ["APPDATA"]
+
 if __name__ == '__main__':
     unittest.main()

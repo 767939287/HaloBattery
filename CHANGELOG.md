@@ -7,6 +7,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Preferences > Sound with the low battery alert** (off by default), for full-screen
+  games where the notification is not seen (#66). The low battery alert then also plays
+  Windows' own "Battery Low" sound ("Battery Critical" at 5% or less), and plays it again
+  every 5 minutes while the device stays low, awake and off the charger.
 - SteelSeries Arctis Nova Elite (`1038:2244`, #138): battery level and charging of the
   headset through its base station, without SteelSeries GG. The app sends the read-only
   status request `01 b0` to interface 3 and reads the station's direct `01 b0` reply

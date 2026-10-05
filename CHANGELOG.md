@@ -12,6 +12,11 @@ and the project follows [Semantic Versioning](https://semver.org/).
   the cable (#106). The transaction ids (0x9F wireless, 0x1F wired) and the USB interface that
   takes the commands (2 or 3) come from OpenRazer's keyboard driver. The icon shows the
   keyboard pictogram. The DeathStalker V2 Pro TKL is confirmed on hardware (#106); the others are not tested yet.
+- **Portable mode**: put an empty `portable.txt` next to `HaloBattery.exe` and the
+  settings, log, battery history, status file and diagnostics report are kept in the app's
+  folder instead of `%APPDATA%\HaloBattery`. If that folder cannot be written, the app
+  falls back to `%APPDATA%` and says so in the log. The diagnostics report shows the data
+  folder in use.
 
 ## [1.13.0] - 2026-09-29
 

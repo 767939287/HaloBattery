@@ -40,6 +40,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
   folder in use.
 
 ### Fixed
+- Less CPU while a device charges: each new battery level drew the charging animation
+  twice, once for a light and once for a dark taskbar. Only the colour in use is drawn
+  now; the other one is drawn once, the first time the taskbar or the MyDockFinder bar
+  changes colour.
 - The **Poll interval** was not kept while Bluetooth was on: each Bluetooth update (once a
   minute, and several times after a device connects) also polled every mouse, keyboard
   and headset, so a 5-minute interval became about one minute. A Bluetooth update now

@@ -40,6 +40,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
   folder in use.
 
 ### Fixed
+- The **Poll interval** was not kept while Bluetooth was on: each Bluetooth update (once a
+  minute, and several times after a device connects) also polled every mouse, keyboard
+  and headset, so a 5-minute interval became about one minute. A Bluetooth update now
+  only refreshes the Bluetooth icons; the other devices are polled at the chosen interval.
 - JBL Quantum 910: while its receiver was plugged in, every poll waited up to 10 seconds for
   the headset to speak and held back the icons of all other devices. The app now listens
   to the receiver all the time in the background, so polls do not wait, and a level the

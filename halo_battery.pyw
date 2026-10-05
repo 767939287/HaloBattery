@@ -112,7 +112,8 @@ from providers import (AmInfinityProvider, AstroProvider, AsusProvider,  # noqa:
                        KeychronProvider, LamzuProvider, LofreeProvider, LogitechProvider,
                        LogitechCenturionProvider,
                        MchoseProvider, NintendoProvider, PlayStationProvider, PulsarProvider,
-                       RazerProvider, SteelSeriesProvider, WLmouseProvider, XInputProvider)
+                       RazerProvider, SteelSeriesEliteProvider, SteelSeriesProvider,
+                       WLmouseProvider, XInputProvider)
 from providers.bluetooth import BluetoothWatcher  # noqa: E402
 
 HEADSET_WORDS = ("blackshark", "kraken", "barracuda", "nari", "thresher", "headset",
@@ -171,6 +172,7 @@ PROVIDER_LABELS = {
     "pulsar": "Pulsar / ATK VXE mice",
     "razer": "Razer mice and headsets",
     "steelseries": "SteelSeries",
+    "steelseries_elite": "SteelSeries Arctis Nova Elite",
     "wlmouse": "WLmouse",
     "xinput": "Xbox-compatible controllers",
 }
@@ -184,7 +186,7 @@ def make_providers() -> list:
             PlayStationProvider(), EightBitDoProvider(), BarracudaProvider(), NintendoProvider(),
             AsusProvider(), GWolvesProvider(), LofreeProvider(), AstroProvider(), CorsairProvider(),
             LamzuProvider(), AmInfinityProvider(),
-            LogitechCenturionProvider(), HyperXCloud3SProvider()]
+            SteelSeriesEliteProvider(), LogitechCenturionProvider(), HyperXCloud3SProvider()]
 
 
 # ---------------------------------------------------------------- config

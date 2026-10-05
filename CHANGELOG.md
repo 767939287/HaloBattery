@@ -7,6 +7,10 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- G-Wolves HSK Pro ACE on its receiver (33E4:5803, #105), and the other 21 G-Wolves models
+  with a receiver of their own, from the model list of G-Wolves' web driver (mouse.xyz). The
+  older models use the web driver's other battery request (getOldBattery). **Unverified** on
+  hardware.
 - Logitech G PRO X 2 LIGHTSPEED headset on its receiver (046D:0AF7, #103), over Logitech's
   Centurion transport as Solaar and HeadsetControl read it: battery and charging, read-only
   requests. Confirmed on a real headset (#103).

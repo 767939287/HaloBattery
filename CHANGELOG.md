@@ -10,6 +10,16 @@ and the project follows [Semantic Versioning](https://semver.org/).
 - HyperX Cloud III S Wireless on its dongle (03F0:02CC, #106), with the protocol of
   HyperHeadset's `cloud_iii_s_wireless`, sent as output reports the way NGENUITY sends them: battery and charging, read-only requests. **Verified on hardware** in #106: 89 %, the same level as
   NGENUITY.
+- Razer DeathStalker V2 Pro and V2 Pro TKL, BlackWidow V3 Mini HyperSpeed, BlackWidow V4 Mini
+  HyperSpeed and BlackWidow V4 Tenkeyless HyperSpeed keyboards, on the HyperSpeed receiver or
+  the cable (#106). The transaction ids (0x9F wireless, 0x1F wired) and the USB interface that
+  takes the commands (2 or 3) come from OpenRazer's keyboard driver. The icon shows the
+  keyboard pictogram. The DeathStalker V2 Pro TKL is confirmed on hardware (#106); the others are not tested yet.
+- **Portable mode**: put an empty `portable.txt` next to `HaloBattery.exe` and the
+  settings, log, battery history, status file and diagnostics report are kept in the app's
+  folder instead of `%APPDATA%\HaloBattery`. If that folder cannot be written, the app
+  falls back to `%APPDATA%` and says so in the log. The diagnostics report shows the data
+  folder in use.
 
 ## [1.13.0] - 2026-09-29
 

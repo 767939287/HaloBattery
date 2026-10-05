@@ -6,7 +6,22 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-10-05
+
+Portable mode: with a `portable.txt` next to the app, settings and the log stay in its
+folder. An optional sound with the low battery alert for full-screen games. New devices:
+Razer DeathStalker V2 Pro / TKL and BlackWidow HyperSpeed keyboards, HyperX Cloud III S
+Wireless, Logitech G PRO X 2 LIGHTSPEED headset, G-Wolves HSK Pro ACE and the other
+G-Wolves models with their own receiver, and SteelSeries Arctis Nova Elite. Fixes for
+Bluetooth polling, JBL Quantum 910 polls, "Hide this device" during a poll and CPU use
+while charging. The README is shorter; the device list moved to `docs/devices.md`.
+
 ### Added
+- **Portable mode**: put an empty `portable.txt` next to `HaloBattery.exe` and the
+  settings, log, battery history, status file and diagnostics report are kept in the app's
+  folder instead of `%APPDATA%\HaloBattery`. If that folder cannot be written, the app
+  falls back to `%APPDATA%` and says so in the log. The diagnostics report shows the data
+  folder in use.
 - **Preferences > Sound with the low battery alert** (off by default), for full-screen
   games where the notification is not seen (#66). The low battery alert then also plays
   Windows' own "Battery Low" sound ("Battery Critical" at 5% or less), and plays it again
@@ -37,11 +52,6 @@ and the project follows [Semantic Versioning](https://semver.org/).
   the cable (#106). The transaction ids (0x9F wireless, 0x1F wired) and the USB interface that
   takes the commands (2 or 3) come from OpenRazer's keyboard driver. The icon shows the
   keyboard pictogram. The DeathStalker V2 Pro TKL is confirmed on hardware (#106); the others are not tested yet.
-- **Portable mode**: put an empty `portable.txt` next to `HaloBattery.exe` and the
-  settings, log, battery history, status file and diagnostics report are kept in the app's
-  folder instead of `%APPDATA%\HaloBattery`. If that folder cannot be written, the app
-  falls back to `%APPDATA%` and says so in the log. The diagnostics report shows the data
-  folder in use.
 
 ### Fixed
 - **Hide this device** clicked while the app was reading the devices could bring the
@@ -833,7 +843,8 @@ First public release.
   in or unplugged.
 - Settings and the autostart entry are migrated from the app's earlier name, Battery Tray.
 
-[Unreleased]: ../../compare/v1.13.0...HEAD
+[Unreleased]: ../../compare/v1.14.0...HEAD
+[1.14.0]: ../../compare/v1.13.0...v1.14.0
 [1.13.0]: ../../compare/v1.12.0...v1.13.0
 [1.12.0]: ../../compare/v1.11.0...v1.12.0
 [1.11.0]: ../../compare/v1.10.1...v1.11.0

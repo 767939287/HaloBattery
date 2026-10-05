@@ -36,7 +36,7 @@ from typing import Callable, Dict, List, Optional, Set
 
 APP_NAME = "HaloBattery"
 APP_TITLE = "Halo Battery"
-VERSION = "1.13.0"
+VERSION = "1.14.0"
 LEGACY_NAME = "BatteryTray"      # the app's previous name (settings and autostart are migrated)
 
 if getattr(sys, "frozen", False):

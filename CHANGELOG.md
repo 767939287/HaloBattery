@@ -7,6 +7,9 @@ and the project follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Logitech G PRO X 2 LIGHTSPEED headset on its receiver (046D:0AF7, #103), over Logitech's
+  Centurion transport as Solaar and HeadsetControl read it: battery and charging, read-only
+  requests. Confirmed on a real headset (#103).
 - HyperX Cloud III S Wireless on its dongle (03F0:02CC, #106), with the protocol of
   HyperHeadset's `cloud_iii_s_wireless`, sent as output reports the way NGENUITY sends them: battery and charging, read-only requests. **Verified on hardware** in #106: 89 %, the same level as
   NGENUITY.

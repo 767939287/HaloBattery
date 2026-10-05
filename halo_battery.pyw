@@ -110,6 +110,7 @@ from providers import (AmInfinityProvider, AstroProvider, AsusProvider,  # noqa:
                        GWolvesProvider, HyperXAlpha2Provider, HyperXCloud3Provider, HyperXCloud3SProvider,
                        HyperXProvider, JblProvider,
                        KeychronProvider, LamzuProvider, LofreeProvider, LogitechProvider,
+                       LogitechCenturionProvider,
                        MchoseProvider, NintendoProvider, PlayStationProvider, PulsarProvider,
                        RazerProvider, SteelSeriesProvider, WLmouseProvider, XInputProvider)
 from providers.bluetooth import BluetoothWatcher  # noqa: E402
@@ -163,6 +164,7 @@ PROVIDER_LABELS = {
     "lamzu": "LAMZU mice",
     "lofree": "Lofree keyboards",
     "logitech": "Logitech",
+    "logitech_centurion": "Logitech G PRO X 2 LIGHTSPEED",
     "mchose": "MCHOSE mice",
     "nintendo": "Nintendo Switch controllers",
     "playstation": "PlayStation controllers",
@@ -181,7 +183,8 @@ def make_providers() -> list:
             JblProvider(), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
             PlayStationProvider(), EightBitDoProvider(), BarracudaProvider(), NintendoProvider(),
             AsusProvider(), GWolvesProvider(), LofreeProvider(), AstroProvider(), CorsairProvider(),
-            LamzuProvider(), AmInfinityProvider(), HyperXCloud3SProvider()]
+            LamzuProvider(), AmInfinityProvider(),
+            LogitechCenturionProvider(), HyperXCloud3SProvider()]
 
 
 # ---------------------------------------------------------------- config

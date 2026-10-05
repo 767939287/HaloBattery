@@ -46,7 +46,35 @@ else:
 sys.path.insert(0, BASE_DIR)
 
 APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~"))
-DATA_DIR = os.path.join(APPDATA_DIR, APP_NAME)
+PORTABLE_MARKER = "portable.txt"   # next to the app: keep settings and the log in its folder
+
+
+def _writable(folder: str) -> bool:
+    """True if a file can be created in the folder (os.access is not reliable on Windows)."""
+    try:
+        with tempfile.TemporaryFile(dir=folder):
+            pass
+        return True
+    except OSError:
+        return False
+
+
+def _calculate_data_dir(base_dir: str, appdata_dir: Optional[str] = None):
+    """Pick the folder for settings, the log, the history and the diagnostics report.
+
+    Portable mode: with a portable.txt file next to the app, everything stays in the app's
+    own folder. Without it, or when that folder cannot be written (e.g. Program Files),
+    the data goes to %APPDATA%\\HaloBattery. Returns (portable_mode, data_dir).
+    """
+    if appdata_dir is None:
+        appdata_dir = APPDATA_DIR
+    if os.path.exists(os.path.join(base_dir, PORTABLE_MARKER)) and _writable(base_dir):
+        return True, base_dir
+    return False, os.path.join(appdata_dir, APP_NAME)
+
+
+PORTABLE_REQUESTED = os.path.exists(os.path.join(BASE_DIR, PORTABLE_MARKER))
+PORTABLE, DATA_DIR = _calculate_data_dir(BASE_DIR)
 os.makedirs(DATA_DIR, exist_ok=True)
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 LOG_PATH = os.path.join(DATA_DIR, "halo_battery.log")
@@ -59,6 +87,9 @@ log.setLevel(logging.INFO)
 _fh = RotatingFileHandler(LOG_PATH, maxBytes=512_000, backupCount=1, encoding="utf-8")
 _fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 log.addHandler(_fh)
+if PORTABLE_REQUESTED and not PORTABLE:
+    log.warning("%s found, but %s cannot be written: settings and the log stay in %s",
+                PORTABLE_MARKER, BASE_DIR, DATA_DIR)
 
 try:
     import hid  # noqa: E402
@@ -76,10 +107,13 @@ from providers import hidlist  # noqa: E402
 from providers import (AmInfinityProvider, AstroProvider, AsusProvider,  # noqa: E402
                        AudezeProvider, BarracudaProvider, BluetoothProvider, CorsairProvider, DeviceStatus,
                        EightBitDoProvider,
-                       GWolvesProvider, HyperXAlpha2Provider, HyperXCloud3Provider, HyperXProvider, JblProvider,
+                       GWolvesProvider, HyperXAlpha2Provider, HyperXCloud3Provider, HyperXCloud3SProvider,
+                       HyperXProvider, JblProvider,
                        KeychronProvider, LamzuProvider, LofreeProvider, LogitechProvider,
+                       LogitechCenturionProvider,
                        MchoseProvider, NintendoProvider, PlayStationProvider, PulsarProvider,
-                       RazerProvider, SteelSeriesProvider, WLmouseProvider, XInputProvider)
+                       RazerProvider, SteelSeriesEliteProvider, SteelSeriesProvider,
+                       WLmouseProvider, XInputProvider)
 from providers.bluetooth import BluetoothWatcher  # noqa: E402
 from providers.jbl import PROBE_LISTEN_S as JBL_PROBE_LISTEN_S  # noqa: E402
 
@@ -126,17 +160,20 @@ PROVIDER_LABELS = {
     "hyperx": "HyperX Cloud II Wireless",
     "hyperx_alpha2": "HyperX Cloud Alpha 2",
     "hyperx_cloud3": "HyperX Cloud III Wireless",
+    "hyperx_cloud3s": "HyperX Cloud III S Wireless",
     "jbl": "JBL Quantum",
     "keychron": "Keychron",
     "lamzu": "LAMZU mice",
     "lofree": "Lofree keyboards",
     "logitech": "Logitech",
+    "logitech_centurion": "Logitech G PRO X 2 LIGHTSPEED",
     "mchose": "MCHOSE mice",
     "nintendo": "Nintendo Switch controllers",
     "playstation": "PlayStation controllers",
     "pulsar": "Pulsar / ATK VXE mice",
     "razer": "Razer mice and headsets",
     "steelseries": "SteelSeries",
+    "steelseries_elite": "SteelSeries Arctis Nova Elite",
     "wlmouse": "WLmouse",
     "xinput": "Xbox-compatible controllers",
 }
@@ -150,7 +187,8 @@ def make_providers(jbl_listen_first: float = 0.0) -> list:
             JblProvider(listen_first=jbl_listen_first), LogitechProvider(), SteelSeriesProvider(), XInputProvider(),
             PlayStationProvider(), EightBitDoProvider(), BarracudaProvider(), NintendoProvider(),
             AsusProvider(), GWolvesProvider(), LofreeProvider(), AstroProvider(), CorsairProvider(),
-            LamzuProvider(), AmInfinityProvider()]
+            LamzuProvider(), AmInfinityProvider(),
+            SteelSeriesEliteProvider(), LogitechCenturionProvider(), HyperXCloud3SProvider()]
 
 
 # ---------------------------------------------------------------- config
@@ -1332,7 +1370,8 @@ class App:
 
     def write_diag(self, results: List[DeviceStatus]):
         lines = [f"{APP_TITLE} v{VERSION}  {time.strftime('%Y-%m-%d %H:%M:%S')}",
-                 f"Python {sys.version.split()[0]}  {sys.platform}", ""]
+                 f"Python {sys.version.split()[0]}  {sys.platform}",
+                 f"data folder: {DATA_DIR}" + ("  (portable)" if PORTABLE else ""), ""]
         lines.append("=== Poll result ===")
         lines += [describe(s) + f"   [{s.key}]" for s in results] or ["(nothing)"]
         hidden, names = self._settings_map("hidden"), self._settings_map("names")

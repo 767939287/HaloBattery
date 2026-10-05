@@ -6,6 +6,39 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- SteelSeries Arctis Nova Elite (`1038:2244`, #138): battery level and charging of the
+  headset through its base station, without SteelSeries GG. The app sends the read-only
+  status request `01 b0` to interface 3 and reads the station's direct `01 b0` reply
+  (headset level in byte 6, power state in byte 14, charging in byte 15), or the
+  `07 b7` / `07 b5` frames. A headset reported as off shows no level; the spare battery in
+  the station is not shown. The request comes from elegos/Linux-Arctis-Manager (a USB
+  capture of SteelSeries GG on Windows), the reply layout from loteran/Arctis-Sound-Manager
+  (SteelSeries GG's own description of the station). **Level and charging verified on
+  hardware** in #138: the level matches SteelSeries GG and the charging animation works.
+  A switched-off headset shows 0 %, as SteelSeries GG does in its tray (the off state does
+  not arrive as power code `01` on this station).
+- G-Wolves HSK Pro ACE on its receiver (33E4:5803, #105), and the other 21 G-Wolves models
+  with a receiver of their own, from the model list of G-Wolves' web driver (mouse.xyz). The
+  older models use the web driver's other battery request (getOldBattery). **Unverified** on
+  hardware.
+- Logitech G PRO X 2 LIGHTSPEED headset on its receiver (046D:0AF7, #103), over Logitech's
+  Centurion transport as Solaar and HeadsetControl read it: battery and charging, read-only
+  requests. Confirmed on a real headset (#103).
+- HyperX Cloud III S Wireless on its dongle (03F0:02CC, #106), with the protocol of
+  HyperHeadset's `cloud_iii_s_wireless`, sent as output reports the way NGENUITY sends them: battery and charging, read-only requests. **Verified on hardware** in #106: 89 %, the same level as
+  NGENUITY.
+- Razer DeathStalker V2 Pro and V2 Pro TKL, BlackWidow V3 Mini HyperSpeed, BlackWidow V4 Mini
+  HyperSpeed and BlackWidow V4 Tenkeyless HyperSpeed keyboards, on the HyperSpeed receiver or
+  the cable (#106). The transaction ids (0x9F wireless, 0x1F wired) and the USB interface that
+  takes the commands (2 or 3) come from OpenRazer's keyboard driver. The icon shows the
+  keyboard pictogram. The DeathStalker V2 Pro TKL is confirmed on hardware (#106); the others are not tested yet.
+- **Portable mode**: put an empty `portable.txt` next to `HaloBattery.exe` and the
+  settings, log, battery history, status file and diagnostics report are kept in the app's
+  folder instead of `%APPDATA%\HaloBattery`. If that folder cannot be written, the app
+  falls back to `%APPDATA%` and says so in the log. The diagnostics report shows the data
+  folder in use.
+
 ### Fixed
 - JBL Quantum 910: while its receiver was plugged in, every poll waited up to 10 seconds for
   the headset to speak and held back the icons of all other devices. The app now listens

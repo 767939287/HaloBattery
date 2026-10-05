@@ -376,7 +376,7 @@ class RegistrationTest(unittest.TestCase):
         with open(os.path.join(ROOT, "halo_battery.pyw"), encoding="utf-8") as f:
             src = f.read()
         # make_providers() is the single list behind App.providers and --probe
-        body = src.split("def make_providers()", 1)[1].split("\ndef ", 1)[0]
+        body = src.split("def make_providers(", 1)[1].split("\ndef ", 1)[0]
         self.assertIn("SteelSeriesEliteProvider()", body)
         self.assertEqual(src.count("SteelSeriesEliteProvider()"), 1)
         # and the Device types menu has a label for it

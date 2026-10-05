@@ -6,6 +6,13 @@ and the project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Portable mode**: put an empty `portable.txt` next to `HaloBattery.exe` and the
+  settings, log, battery history, status file and diagnostics report are kept in the app's
+  folder instead of `%APPDATA%\HaloBattery`. If that folder cannot be written, the app
+  falls back to `%APPDATA%` and says so in the log. The diagnostics report shows the data
+  folder in use.
+
 ## [1.13.0] - 2026-09-29
 
 A new Windows 11 style tray menu and a batch of tray features: turn device types off,

@@ -45,26 +45,36 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
 
-# Define APPDATA_DIR globally for legacy config migration
 APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~"))
+PORTABLE_MARKER = "portable.txt"   # next to the app: keep settings and the log in its folder
 
-def _calculate_data_dir(base_dir):
-    """Calculate data directory based on portable mode.
-    
-    Returns:
-        tuple: (portable_mode: bool, data_dir: str)
+
+def _writable(folder: str) -> bool:
+    """True if a file can be created in the folder (os.access is not reliable on Windows)."""
+    try:
+        with tempfile.TemporaryFile(dir=folder):
+            pass
+        return True
+    except OSError:
+        return False
+
+
+def _calculate_data_dir(base_dir: str, appdata_dir: Optional[str] = None):
+    """Pick the folder for settings, the log, the history and the diagnostics report.
+
+    Portable mode: with a portable.txt file next to the app, everything stays in the app's
+    own folder. Without it, or when that folder cannot be written (e.g. Program Files),
+    the data goes to %APPDATA%\\HaloBattery. Returns (portable_mode, data_dir).
     """
-    portable_mode = os.path.exists(os.path.join(base_dir, "portable.txt"))
-    
-    if portable_mode:
-        return (True, base_dir)
-    else:
-        APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~"))
-        data_dir = os.path.join(APPDATA_DIR, APP_NAME)
-        return (False, data_dir)
+    if appdata_dir is None:
+        appdata_dir = APPDATA_DIR
+    if os.path.exists(os.path.join(base_dir, PORTABLE_MARKER)) and _writable(base_dir):
+        return True, base_dir
+    return False, os.path.join(appdata_dir, APP_NAME)
 
-# Calculate data directory using the new function
-portable_mode, DATA_DIR = _calculate_data_dir(BASE_DIR)
+
+PORTABLE_REQUESTED = os.path.exists(os.path.join(BASE_DIR, PORTABLE_MARKER))
+PORTABLE, DATA_DIR = _calculate_data_dir(BASE_DIR)
 os.makedirs(DATA_DIR, exist_ok=True)
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
 LOG_PATH = os.path.join(DATA_DIR, "halo_battery.log")
@@ -77,6 +87,9 @@ log.setLevel(logging.INFO)
 _fh = RotatingFileHandler(LOG_PATH, maxBytes=512_000, backupCount=1, encoding="utf-8")
 _fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 log.addHandler(_fh)
+if PORTABLE_REQUESTED and not PORTABLE:
+    log.warning("%s found, but %s cannot be written: settings and the log stay in %s",
+                PORTABLE_MARKER, BASE_DIR, DATA_DIR)
 
 try:
     import hid  # noqa: E402
@@ -1348,7 +1361,8 @@ class App:
 
     def write_diag(self, results: List[DeviceStatus]):
         lines = [f"{APP_TITLE} v{VERSION}  {time.strftime('%Y-%m-%d %H:%M:%S')}",
-                 f"Python {sys.version.split()[0]}  {sys.platform}", ""]
+                 f"Python {sys.version.split()[0]}  {sys.platform}",
+                 f"data folder: {DATA_DIR}" + ("  (portable)" if PORTABLE else ""), ""]
         lines.append("=== Poll result ===")
         lines += [describe(s) + f"   [{s.key}]" for s in results] or ["(nothing)"]
         hidden, names = self._settings_map("hidden"), self._settings_map("names")

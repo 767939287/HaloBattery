@@ -91,6 +91,10 @@ Windows SmartScreen may warn about an unrecognized app on first launch, because 
 2. Download or clone this repository somewhere permanent, e.g. `C:\Tools\HaloBattery`.
 3. Run `install_and_run.bat`, then right-click the tray icon → **Start with Windows**.
 
+### Portable mode
+
+To keep the settings, the log and the battery history next to the app instead of in `%APPDATA%\HaloBattery` (for a USB stick or a folder you sync), create an empty file named `portable.txt` in the app's folder, next to `HaloBattery.exe` (or `halo_battery.pyw` when running from source), and restart the app. The folder must be writable: if it is not (e.g. inside `C:\Program Files`), the app keeps using `%APPDATA%\HaloBattery`. Settings are not moved over by themselves: copy `config.json` from `%APPDATA%\HaloBattery` to keep them. **Start with Windows** still adds an entry to the registry of the current user.
+
 `build_exe.bat` builds it yourself into `dist\HaloBattery`. Releases are built automatically: pushing a tag like `v1.8.0` makes GitHub Actions build the app and attach the zip (`.github/workflows/release.yml`).
 
 ## The icon
@@ -134,7 +138,7 @@ Right-click a device icon to open its menu. It looks like a Windows 11 menu (acr
 3. Run `probe.bat` or choose **Diagnostics…** from the tray menu. The report lists every HID device and the raw protocol replies. Attach it to an issue in this repository to get a new device supported. The report contains Bluetooth MAC addresses and device serial numbers; you may want to redact them before posting. [CONTRIBUTING.md](CONTRIBUTING.md) tells you what to attach, how to record a USB capture for a device that is not supported yet, and how to open a pull request.
 4. **"python312.dll was not found"**, or **Start with Windows** says the app runs from a temporary folder: the app was started straight from the ZIP, or only `HaloBattery.exe` was copied out of it. Extract the whole ZIP to a folder of its own (the `_internal` folder must stay next to the .exe) and run `HaloBattery.exe` from there.
 
-Settings, the log and the diagnostics report live in `%APPDATA%\HaloBattery`.
+Settings, the log and the diagnostics report live in `%APPDATA%\HaloBattery` (in the app's own folder in [portable mode](#portable-mode)). The first line of the diagnostics report shows which folder is used.
 
 ## Credits
 

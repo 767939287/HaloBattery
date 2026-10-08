@@ -105,6 +105,7 @@ from pystray import Menu, MenuItem as Item  # noqa: E402
 import flyout  # noqa: E402
 import history  # noqa: E402
 import icons  # noqa: E402
+import session  # noqa: E402
 import updates  # noqa: E402
 import winevents  # noqa: E402
 from providers import hidlist  # noqa: E402
@@ -998,6 +999,9 @@ class App:
         self.bt_watch_failed = False
         self.update: Optional[tuple] = None   # (version, release page) when a newer one exists
         self.update_wake = threading.Event()  # "check for updates now"
+        # answers WM_QUERYENDSESSION / WM_ENDSESSION so Windows can shut down without
+        # "This app is preventing shutdown"; made in run() once the app is up
+        self.session: Optional[session.SessionEndWatcher] = None
         # the tray menu (flyout.py); None = pystray's classic menu
         self.flyout: Optional[flyout.FlyoutHost] = (
             flyout.FlyoutHost() if sys.platform == "win32" and self.cfg.get("fluent_menu", True) else None)
@@ -1986,12 +1990,20 @@ class App:
             ic.stop()
         if self.placeholder:
             self.placeholder.stop()
+        if self.session is not None:
+            self.session.stop()
         host = getattr(self, "flyout", None)
         if host is not None:
             host.stop()
 
     def run(self):
         log.info("start v%s", VERSION)
+        # before the icons: Windows broadcasts WM_QUERYENDSESSION to every top-level
+        # window, and without a window that answers it the app is reported as
+        # "preventing shutdown". The watcher only answers, and quit() runs elsewhere.
+        self.session = session.SessionEndWatcher(self.quit)
+        if not self.session.start():
+            log.warning("session end: shutdown / logoff will not be answered cleanly")
         worker = threading.Thread(target=self.loop, daemon=True)
         worker.start()
         threading.Thread(target=self.theme_loop, daemon=True).start()

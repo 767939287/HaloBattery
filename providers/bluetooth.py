@@ -437,6 +437,16 @@ class BluetoothWatcher:
                 proc.terminate()
             except OSError:
                 pass
+            # A PowerShell child can be wedged inside a WinRT call and not honour
+            # terminate(); during shutdown the app must not wait for it. kill() is
+            # immediate, and the thread that owns the pipe is a daemon anyway.
+            try:
+                proc.wait(timeout=1.5)
+            except Exception:
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
 
     @staticmethod
     def _pump(stream, q: "queue.Queue") -> None:

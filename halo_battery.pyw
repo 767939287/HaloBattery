@@ -1970,7 +1970,12 @@ class App:
             self.update = None
         save_config(self.cfg)
 
-    def quit(self):
+    def quit(self, fast: bool = False):
+        """Stop the app and clean up. `fast` is the session-end path (Windows is
+        shutting down): the slow, blocking stops are skipped - pystray's stop() waits
+        for each icon's thread and the PowerShell child may be wedged - so the process
+        ends quickly instead of being logged as "delaying system shutdown". Only the
+        work worth keeping (the history and the status file) is done."""
         self.stop_evt.set()
         self.history.save(force=True)
         if self.cfg.get("status_file"):
@@ -1978,6 +1983,10 @@ class App:
                 write_json(STATUS_PATH, self.status_data([], running=False))
             except OSError as e:
                 log.warning("status file: %s", e)
+        if fast:
+            if self.bt_watch is not None:
+                self.bt_watch.stop(wait=False)   # ask the child to stop, do not wait
+            return
         self.update_wake.set()
         self.theme_evt.set()
         if self.win_events is not None:
@@ -2000,8 +2009,9 @@ class App:
         log.info("start v%s", VERSION)
         # before the icons: Windows broadcasts WM_QUERYENDSESSION to every top-level
         # window, and without a window that answers it the app is reported as
-        # "preventing shutdown". The watcher only answers, and quit() runs elsewhere.
-        self.session = session.SessionEndWatcher(self.quit)
+        # "preventing shutdown". The watcher only answers; the comment text names
+        # the reason. quit(fast=True) is the session-end path: no blocking stops.
+        self.session = session.SessionEndWatcher(lambda: self.quit(fast=True))
         if not self.session.start():
             log.warning("session end: shutdown / logoff will not be answered cleanly")
         worker = threading.Thread(target=self.loop, daemon=True)

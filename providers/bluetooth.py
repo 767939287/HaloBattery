@@ -429,7 +429,9 @@ class BluetoothWatcher:
     def running(self) -> bool:
         return self._thread.is_alive() and not self.failed
 
-    def stop(self) -> None:
+    def stop(self, wait: bool = True) -> None:
+        """Terminate the child. `wait=False` (the session-end path) only asks it to
+        stop and returns at once - a wedged PowerShell must not hold the shutdown up."""
         self._stop.set()
         proc = self._proc
         if proc is not None and proc.poll() is None:
@@ -437,6 +439,13 @@ class BluetoothWatcher:
                 proc.terminate()
             except OSError:
                 pass
+            if not wait:
+                # kill() is immediate too; the owning thread is a daemon
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+                return
             # A PowerShell child can be wedged inside a WinRT call and not honour
             # terminate(); during shutdown the app must not wait for it. kill() is
             # immediate, and the thread that owns the pipe is a daemon anyway.

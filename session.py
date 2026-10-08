@@ -39,21 +39,41 @@ WM_CLOSE = 0x0010
 ENDSESSION_CLOSEAPP = 0x00000001   # lParam bit: only this app's windows are closed
 ENDSESSION_LOGOFF = 0x80000000     # lParam bit: this is a logoff
 
+# How long the app is given to tidy up before the process is ended outright. Windows
+# does NOT wait for that work: it goes on shutting the other processes down and, in the
+# end, kills what is left. But the work can block - pystray's stop() waits for the
+# icon's thread, and a PowerShell child wedged inside a WinRT call does not answer
+# terminate() - and every stalled second is written to the event log as
+# "HaloBattery.exe is delaying system shutdown". Answering Windows at once and then
+# ending the process here keeps the shutdown quick whatever those threads are doing.
+GRACE_S = 2.0
+
+
+def _hard_exit() -> None:    # a name so a test can replace it and watch instead
+    import os
+    os._exit(0)
+
 
 class SessionEndWatcher:
     """One hidden window that answers WM_QUERYENDSESSION and asks the app to quit.
 
     `on_end` is called from a short-lived worker thread, never from the window
     procedure, so whatever it does (stopping tray icons, terminating the
-    PowerShell child, writing files) cannot block the answer to Windows."""
+    PowerShell child, writing files) cannot block the answer to Windows. If it is
+    still not done after GRACE_S, the process is ended from here anyway: Windows has
+    already been told the session may end, and a wedged child or tray thread must
+    not hold the shutdown up."""
 
-    def __init__(self, on_end: Callable[[], None]):
+    def __init__(self, on_end: Callable[[], None], exit_fn: Optional[Callable[[], None]] = None):
         self.on_end = on_end
+        self._exit = exit_fn or _hard_exit
         self._thread: Optional[threading.Thread] = None
         self._thread_id = 0
         self._ok = False
         self._asked = threading.Event()   # the app was asked to quit once
         self._hwnd = 0
+        self._grace: Optional[threading.Timer] = None
+        self._exit_lock = threading.Lock()   # the timer and the worker race to exit
 
     def start(self) -> bool:
         if sys.platform != "win32" or self._thread is not None:
@@ -89,6 +109,11 @@ class SessionEndWatcher:
             return
         self._asked.set()
         log.info("session ending (%s): shutting down", reason)
+        # The worker tidies up; the timer ends the process if it does not finish in
+        # time, so a stop() that waits for a wedged thread cannot hold the shutdown.
+        self._grace = threading.Timer(GRACE_S, self._force_exit)
+        self._grace.daemon = True
+        self._grace.start()
         threading.Thread(target=self._safe_end, daemon=True, name="session-end-quit").start()
 
     def _safe_end(self) -> None:
@@ -96,6 +121,25 @@ class SessionEndWatcher:
             self.on_end()
         except Exception:
             log.exception("shutdown")
+        # The tidy-up finished in time: cancel the timer and end the process now,
+        # rather than sit in the message loop while Windows waits for us.
+        self._force_exit()
+
+    def _force_exit(self) -> None:
+        """End the process once, whatever the state of the tidy-up threads."""
+        with self._exit_lock:
+            grace, self._grace = self._grace, None
+            if grace is None:
+                return                        # the other caller is already exiting
+            try:
+                grace.cancel()
+            except Exception:
+                pass
+        log.info("session ending: exit now")
+        try:
+            self._exit()
+        except Exception:
+            log.exception("session end exit")
 
     def _run(self, ready: threading.Event) -> None:
         import ctypes
